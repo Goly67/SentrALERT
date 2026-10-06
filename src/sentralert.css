@@ -526,6 +526,9 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
   .earthquake-info-panel.is-fullscreen .sa-head {
     margin: -14px -14px 0; padding: 12px 14px; border-radius: 14px 14px 0 0;
   }
+  .earthquake-info-panel.is-fullscreen .sa-logo-frame {
+    height: 82px; max-height: 82px; margin: 4px auto;
+  }
   .earthquake-info-panel.is-fullscreen .sa-logo { width: 100%; height: auto; max-height: 82px; margin: 4px auto; }
   .earthquake-info-panel.is-fullscreen .sa-pills { margin-top: 8px; }
   .earthquake-info-panel.is-fullscreen .earthquake-map-frame { height: clamp(210px, 62vw, 300px); }
