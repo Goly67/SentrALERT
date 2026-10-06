@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
+import mapLibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { SURIGAO_CENTER } from '../data/surigao.js';
 import {
   BFP_CARAGA_FALLBACK_CONTACT,
@@ -18,6 +19,8 @@ import {
   sWaveDurationMs,
   waveCircleFeature,
 } from '../lib/earthquakes.js';
+
+maplibregl.setWorkerUrl(mapLibreWorkerUrl);
 
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const HAZE_BOUNDS = [[96, -9.5], [144, 21.5]];
