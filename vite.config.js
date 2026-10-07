@@ -42,17 +42,6 @@ export default defineConfig({
           return bulletinPath;
         },
       },
-      '/api/earthquake-map': {
-        target: 'https://earthquake.phivolcs.dost.gov.ph',
-        changeOrigin: true,
-        rewrite: (requestPath) => {
-          const imagePath = new URL(requestPath, 'http://localhost').searchParams.get('path');
-          if (!imagePath || !/^\/\d{4}_Earthquake_Information\/[A-Za-z]+\/\d{4}(?:_\d{4})?_\d{4,}_B1F?\.jpg$/.test(imagePath)) {
-            return '/';
-          }
-          return imagePath;
-        },
-      },
     },
   },
 });

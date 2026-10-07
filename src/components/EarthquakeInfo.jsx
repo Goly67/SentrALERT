@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, TileLayer } from 'react-leaflet';
 import { toBlob } from 'html-to-image';
 import { BrandHeader } from './Brand.jsx';
-import { fetchEarthquakeBulletin, getEarthquakeMapImageUrl } from '../lib/earthquakes.js';
+import { fetchEarthquakeBulletin } from '../lib/earthquakes.js';
 import 'leaflet/dist/leaflet.css';
 
 const EVENTS_PER_PAGE = 20;
@@ -39,14 +39,7 @@ function EventValue({ label, children }) {
   );
 }
 
-function EpicenterMap({ event, bulletin }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const showBulletinImage = Boolean(bulletin?.mapImageUrl) && !imageFailed;
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [bulletin?.mapImageUrl]);
-
+function EpicenterMap({ event }) {
   return (
     <section className="earthquake-map-section" aria-label="Earthquake epicenter map">
       <div className="earthquake-map-heading">
@@ -57,55 +50,44 @@ function EpicenterMap({ event, bulletin }) {
         <span className="earthquake-map-region">Philippines</span>
       </div>
       <div className="earthquake-map-frame">
-        {showBulletinImage ? (
-          <img
-            className="earthquake-bulletin-map-image"
-            src={bulletin.mapImageUrl}
-            alt={`PHIVOLCS epicentral map for the earthquake near ${event.place}`}
-            onError={() => setImageFailed(true)}
+        <MapContainer
+          key={event.id}
+          center={[event.latitude, event.longitude]}
+          zoom={6}
+          scrollWheelZoom={false}
+          dragging={false}
+          doubleClickZoom={false}
+          zoomControl={false}
+          attributionControl={false}
+          keyboard={false}
+          aria-label={`Map showing the earthquake epicenter near ${event.place}`}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-        ) : (
-          <>
-            <MapContainer
-              key={event.id}
-              center={[event.latitude, event.longitude]}
-              zoom={6}
-              scrollWheelZoom={false}
-              dragging={false}
-              doubleClickZoom={false}
-              zoomControl={false}
-              attributionControl={false}
-              keyboard={false}
-              aria-label={`Map showing the earthquake epicenter near ${event.place}`}
-            >
-              <TileLayer
-                attribution="&copy; OpenStreetMap contributors"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <CircleMarker
-                center={[event.latitude, event.longitude]}
-                radius={10}
-                pathOptions={{
-                  color: '#ffffff',
-                  weight: 3,
-                  fillColor: '#ef4d45',
-                  fillOpacity: 1,
-                }}
-              />
-            </MapContainer>
-            <span className="earthquake-map-marker-label">EPICENTER</span>
-          </>
-        )}
+          <CircleMarker
+            center={[event.latitude, event.longitude]}
+            radius={10}
+            pathOptions={{
+              color: '#ffffff',
+              weight: 3,
+              fillColor: '#ef4d45',
+              fillOpacity: 1,
+            }}
+          />
+        </MapContainer>
+        <span className="earthquake-map-marker-label">EPICENTER</span>
       </div>
       <div className="earthquake-map-caption">
         <span className="earthquake-map-key" aria-hidden="true" />
-        <span>{showBulletinImage ? 'PHIVOLCS epicentral map' : 'Reported epicenter'}</span>
+        <span>Reported epicenter</span>
         <a
-          href={showBulletinImage ? 'https://earthquake.phivolcs.dost.gov.ph/' : 'https://www.openstreetmap.org/copyright'}
+          href="https://www.openstreetmap.org/copyright"
           target="_blank"
           rel="noreferrer"
         >
-          {showBulletinImage ? 'PHIVOLCS' : '© OpenStreetMap'}
+          © OpenStreetMap
         </a>
       </div>
     </section>
@@ -154,7 +136,7 @@ export default function EarthquakeInfo({
       })
       .catch(() => {
         if (!controller.signal.aborted) {
-          setBulletin({ mapImageUrl: getEarthquakeMapImageUrl(selectedEvent.url) });
+          setBulletin(null);
         }
       })
       .finally(() => {
@@ -172,17 +154,6 @@ export default function EarthquakeInfo({
     panel.classList.add('is-exporting-landscape');
 
     try {
-      const mapImage = panel.querySelector('.earthquake-bulletin-map-image');
-      if (mapImage && !mapImage.complete) {
-        await new Promise((resolve, reject) => {
-          mapImage.addEventListener('load', resolve, { once: true });
-          mapImage.addEventListener('error', reject, { once: true });
-        });
-      }
-      if (mapImage && mapImage.naturalWidth === 0) {
-        throw new Error('The bulletin map image has not loaded yet.');
-      }
-
       const imageBlob = await toBlob(panel, {
         backgroundColor: '#ffffff',
         cacheBust: true,
@@ -280,7 +251,7 @@ export default function EarthquakeInfo({
             </div>
           </header>
 
-          <EpicenterMap event={selectedEvent} bulletin={bulletin} />
+          <EpicenterMap event={selectedEvent} />
 
           <section className="earthquake-report-details" aria-labelledby="earthquake-details-title">
             <div className="earthquake-section-title">

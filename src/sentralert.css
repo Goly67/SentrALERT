@@ -273,7 +273,6 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
 .earthquake-map-heading h3, .earthquake-section-title h3 { margin: 0; color: var(--navy); font-size: 0.86rem; font-weight: 800; }
 .earthquake-map-region { padding: 5px 8px; border: 1px solid #DCE7F4; border-radius: 999px; background: #F4F8FD; color: #496483; font-size: 0.58rem; font-weight: 750; }
 .earthquake-map-frame { position: relative; overflow: hidden; height: 210px; border: 1px solid #D7E1EF; border-radius: 12px; background: #DBEAF2; isolation: isolate; }
-.earthquake-bulletin-map-image { display: block; width: 100%; height: 100%; object-fit: contain; background: #EAF5FA; }
 .earthquake-map-frame .leaflet-container { width: 100%; height: 100%; font-family: var(--font); }
 .earthquake-map-frame .leaflet-control-attribution { display: none; }
 .earthquake-map-marker-label { position: absolute; z-index: 500; top: 9px; right: 9px; padding: 5px 8px; border: 1px solid rgba(215, 225, 239, 0.9); border-radius: 7px; background: rgba(255, 255, 255, 0.93); color: #A62C28; font-size: 0.52rem; font-weight: 900; letter-spacing: 0.09em; pointer-events: none; }

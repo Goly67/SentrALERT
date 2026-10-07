@@ -30,7 +30,7 @@ export default async function handler(request, response) {
 
     const html = await upstream.text();
     response.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
-    return response.status(200).json(parseEarthquakeBulletin(html, pageUrl.href));
+    return response.status(200).json(parseEarthquakeBulletin(html));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Earthquake bulletin is unavailable';
     return response.status(502).json({ error: message });

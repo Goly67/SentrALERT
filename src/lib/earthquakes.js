@@ -1,7 +1,6 @@
 const PHIVOLCS_ENDPOINT = 'https://earthquakeapi.forestparty223.workers.dev/api/earthquakes';
 const EARTHQUAKE_REQUEST_TIMEOUT_MS = 12_000;
 const EARTHQUAKE_BULLETIN_PATH_PATTERN = /^\/\d{4}_Earthquake_Information\/[A-Za-z]+\/\d{4}(?:_\d{4})?_\d{4,}_B1F?\.html$/;
-const EARTHQUAKE_MAP_PATH_PATTERN = /^\/\d{4}_Earthquake_Information\/[A-Za-z]+\/\d{4}(?:_\d{4})?_\d{4,}_B1F?\.jpg$/;
 const EARTHQUAKE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const EARTH_RADIUS_KM = 6371;
 const P_WAVE_SPEED_KM_S = 6;
@@ -100,34 +99,16 @@ function extractBulletinField(text, label, followingLabels) {
   return text.match(pattern)?.[1]?.trim().replace(/\s*[.:;]\s*$/, '') ?? '';
 }
 
-function useSameOriginMapProxy(bulletin, bulletinUrl) {
-  let mapUrl = null;
-  try {
-    if (typeof bulletin.mapImageUrl === 'string') mapUrl = new URL(bulletin.mapImageUrl);
-  } catch {
-    return { ...bulletin, mapImageUrl: '' };
-  }
-  const mapImageUrl = mapUrl?.origin === bulletinUrl.origin && EARTHQUAKE_MAP_PATH_PATTERN.test(mapUrl.pathname)
-    ? `/api/earthquake-map?path=${encodeURIComponent(mapUrl.pathname)}`
-    : '';
-  return { ...bulletin, mapImageUrl };
-}
-
-export function parseEarthquakeBulletin(html, pageUrl) {
-  if (typeof html !== 'string' || typeof pageUrl !== 'string') {
-    throw new TypeError('Earthquake bulletin HTML and page URL are required');
+export function parseEarthquakeBulletin(html) {
+  if (typeof html !== 'string') {
+    throw new TypeError('Earthquake bulletin HTML is required');
   }
 
   const text = bulletinText(html);
   const labels = ['Reported Intensities', 'Expecting Damage', 'Expecting Aftershocks', 'Issued On', 'Prepared by', 'IMPORTANT'];
-  const mapTag = [...html.matchAll(/<img\b[^>]*>/gi)]
-    .find((match) => /\balt\s*=\s*["'][^"']*EPICENTRAL MAP/i.test(match[0]))?.[0];
-  const imageMatch = mapTag?.match(/\bsrc\s*=\s*["']?\s*([^"'\s>]+)["']?/i);
   const intensity = extractBulletinField(text, 'Reported Intensities', labels.slice(1))
     .replace(/\b20\d{2}_(?:\d{4}_)?\d{4,}_M\d+D\d+_B1F?\b/gi, '')
     .trim();
-  const mapImageUrl = imageMatch ? new URL(imageMatch[1], pageUrl) : null;
-
   return {
     origin: extractBulletinField(text, 'Origin', ['Magnitude']),
     intensities: intensity,
@@ -135,7 +116,6 @@ export function parseEarthquakeBulletin(html, pageUrl) {
     expectedAftershocks: extractBulletinField(text, 'Expecting Aftershocks', labels.slice(3)),
     issuedOn: extractBulletinField(text, 'Issued On', labels.slice(4)),
     preparedBy: extractBulletinField(text, 'Prepared by', ['IMPORTANT']),
-    mapImageUrl: mapImageUrl?.origin === new URL(pageUrl).origin ? mapImageUrl.href : '',
   };
 }
 
@@ -149,25 +129,6 @@ export function parseEarthquakeEvents(data, now = Date.now()) {
 
 export function parseLatestEarthquake(data) {
   return parseEarthquakeEvents(data)?.[0] ?? null;
-}
-
-export function getEarthquakeMapImageUrl(eventUrl) {
-  let bulletinUrl;
-  try {
-    bulletinUrl = new URL(eventUrl);
-  } catch {
-    return '';
-  }
-  if (
-    bulletinUrl.origin !== 'https://earthquake.phivolcs.dost.gov.ph' ||
-    !EARTHQUAKE_BULLETIN_PATH_PATTERN.test(bulletinUrl.pathname)
-  ) {
-    return '';
-  }
-
-  const imagePath = bulletinUrl.pathname.replace(/\.html$/i, '.jpg');
-  if (!EARTHQUAKE_MAP_PATH_PATTERN.test(imagePath)) return '';
-  return `/api/earthquake-map?path=${encodeURIComponent(imagePath)}`;
 }
 
 export async function fetchEarthquakeEvents() {
@@ -213,16 +174,13 @@ export async function fetchEarthquakeBulletin(eventUrl, signal) {
     );
     if (!response.ok) throw new Error(`Earthquake bulletin service returned ${response.status}`);
     if (response.headers?.get?.('content-type')?.includes('text/html')) {
-      return useSameOriginMapProxy(
-        parseEarthquakeBulletin(await response.text(), bulletinUrl.href),
-        bulletinUrl
-      );
+      return parseEarthquakeBulletin(await response.text());
     }
     const bulletin = await response.json();
     if (!bulletin || typeof bulletin !== 'object' || Array.isArray(bulletin)) {
       throw new Error('Earthquake bulletin service returned invalid data');
     }
-    return useSameOriginMapProxy(bulletin, bulletinUrl);
+    return bulletin;
   } finally {
     clearTimeout(timeoutId);
     signal?.removeEventListener('abort', abortRequest);

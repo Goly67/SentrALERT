@@ -5,7 +5,6 @@ import {
   earthquakeCoverageKm,
   fetchEarthquakeBulletin,
   fetchEarthquakeEvents,
-  getEarthquakeMapImageUrl,
   getWaveAnimationFrame,
   parseEarthquakeBulletin,
   parseEarthquakeEvents,
@@ -102,7 +101,7 @@ test('fetches PHIVOLCS earthquake events from the endpoint used by the EQ app', 
   assert.equal(events[0].place, 'NE of Surigao City, Philippines');
 });
 
-test('parses the bulletin details, epicentral map, and omits the IMPORTANT notice', () => {
+test('parses bulletin details and omits the map image and IMPORTANT notice', () => {
   const html = `
     <table>
       <tr><td>Origin :</td><td>TECTONIC</td></tr>
@@ -116,14 +115,13 @@ test('parses the bulletin details, epicentral map, and omits the IMPORTANT notic
       <tr><td>IMPORTANT This is a bulletin notice.</td></tr>
     </table>`;
 
-  assert.deepEqual(parseEarthquakeBulletin(html, bulletinUrl), {
+  assert.deepEqual(parseEarthquakeBulletin(html), {
     origin: 'TECTONIC',
     intensities: '11.20a',
     expectedDamage: 'NO',
     expectedAftershocks: 'NO',
     issuedOn: '06 October 2026 - 04:53 PM',
     preparedBy: 'MAL/JMG',
-    mapImageUrl: 'https://earthquake.phivolcs.dost.gov.ph/2026_Earthquake_Information/October/2026_1006_0845_B1.jpg',
   });
 });
 
@@ -143,33 +141,7 @@ test('fetches an event bulletin through the same-origin endpoint', async (t) => 
 
   assert.equal(requestedUrl.pathname, '/api/earthquake-bulletin');
   assert.equal(requestedUrl.searchParams.get('path'), new URL(bulletinUrl).pathname);
-  assert.deepEqual(result, { expectedDamage: 'NO', mapImageUrl: '' });
-});
-
-test('derives the PHIVOLCS map image URL from an event bulletin URL', () => {
-  assert.equal(
-    getEarthquakeMapImageUrl(bulletinUrl),
-    '/api/earthquake-map?path=%2F2026_Earthquake_Information%2FOctober%2F2026_1006_0845_B1.jpg'
-  );
-  assert.equal(getEarthquakeMapImageUrl('https://example.com/report.html'), '');
-});
-
-test('rewrites the PHIVOLCS map image to a same-origin image proxy', async (t) => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => ({
-    ok: true,
-    json: async () => ({
-      mapImageUrl: 'https://earthquake.phivolcs.dost.gov.ph/2026_Earthquake_Information/October/2026_1006_0845_B1.jpg',
-    }),
-  });
-  t.after(() => { globalThis.fetch = originalFetch; });
-
-  const result = await fetchEarthquakeBulletin(bulletinUrl);
-
-  assert.equal(
-    result.mapImageUrl,
-    '/api/earthquake-map?path=%2F2026_Earthquake_Information%2FOctober%2F2026_1006_0845_B1.jpg'
-  );
+  assert.deepEqual(result, { expectedDamage: 'NO' });
 });
 
 test('parses an HTML bulletin response from the development proxy', async (t) => {
@@ -184,10 +156,6 @@ test('parses an HTML bulletin response from the development proxy', async (t) =>
   const result = await fetchEarthquakeBulletin(bulletinUrl);
 
   assert.equal(result.expectedDamage, 'NO');
-  assert.equal(
-    result.mapImageUrl,
-    '/api/earthquake-map?path=%2F2026_Earthquake_Information%2FOctober%2F2026_1006_0845_B1.jpg'
-  );
 });
 
 test('rejects non-PHIVOLCS or invalid bulletin URLs', async () => {
