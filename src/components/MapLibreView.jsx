@@ -26,6 +26,7 @@ const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const HAZE_BOUNDS = [[96, -9.5], [144, 21.5]];
 const MOBILE_HAZE_BOUNDS = [[108, -8.5], [132, 20.5]];
 const PHILIPPINES_FIRE_BOUNDS = [[116, 4.5], [127.5, 21.5]];
+const ENSO_SST_TILE_URL = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png';
 const EARTHQUAKE_ONLY_LAYERS = [
   'historical-spread', 'historical-direction', 'spread-ghosts', 'spread-live',
   'wind-direction', 'report-points', 'historical-hotspots', 'fire-hotspots',
@@ -120,6 +121,21 @@ function installOperationalLayers(map) {
   for (const id of SOURCE_IDS) {
     map.addSource(id, { type: 'geojson', data: emptyCollection() });
   }
+  map.addSource('enso-sst-anomaly', {
+    type: 'raster',
+    tiles: [ENSO_SST_TILE_URL],
+    tileSize: 256,
+    maxzoom: 7,
+    attribution: '&copy; <a href="https://gibs.earthdata.nasa.gov/">NASA GIBS</a> · GHRSST MUR',
+  });
+  const firstSymbolLayer = map.getStyle().layers.find((layer) => layer.type === 'symbol')?.id;
+  map.addLayer({
+    id: 'enso-sst-anomaly',
+    type: 'raster',
+    source: 'enso-sst-anomaly',
+    layout: { visibility: 'none' },
+    paint: { 'raster-opacity': 0.94, 'raster-fade-duration': 0 },
+  }, firstSymbolLayer);
 
   addSourceAndLayer(map, 'historical-spread', 'fill', {
     'fill-color': ['coalesce', ['get', 'color'], '#173564'],
@@ -488,6 +504,7 @@ function MapLibreView({
   earthquakeLoaded = false,
   earthquakeError = '',
   earthquakeMode = false,
+  ensoMode = false,
   onSelectEarthquake,
   is3d = true,
   onMapReady,
@@ -528,7 +545,9 @@ function MapLibreView({
     setMap(instance);
     onMapReady?.(instance);
     instance.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    let styleReady = false;
     instance.on('load', () => {
+      styleReady = true;
       try {
         instance.setProjection({ type: 'globe' });
         instance.setSky({
@@ -545,7 +564,7 @@ function MapLibreView({
       }
     });
     instance.on('error', (event) => {
-      if (!instance.isStyleLoaded()) {
+      if (!styleReady) {
         setMapError(event.error?.message || 'The free map style could not be loaded. Check your connection.');
       }
     });
@@ -676,7 +695,7 @@ function MapLibreView({
       }
       map.off('click', 'earthquake-event', earthquakeClick);
     };
-  }, [map, loaded, placing, onPickLocation, nationalFireHotspots, onSelectEarthquake]);
+  }, [map, loaded, placing, onPickLocation, nationalFireHotspots, onSelectEarthquake, earthquakeMode, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return;
@@ -791,7 +810,7 @@ function MapLibreView({
   useEffect(() => {
     if (!map || !loaded) return;
     for (const layerId of EARTHQUAKE_ONLY_LAYERS) {
-      const visibility = earthquakeMode
+      const visibility = earthquakeMode || ensoMode
         ? 'none'
         : layerId === 'fire-hotspots' && !nationalFireMode
           ? 'none'
@@ -799,9 +818,12 @@ function MapLibreView({
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility);
     }
     if (map.getLayer('haze-smoke')) {
-      map.setLayoutProperty('haze-smoke', 'visibility', earthquakeMode ? 'none' : hazeMode ? 'visible' : 'none');
+      map.setLayoutProperty('haze-smoke', 'visibility', earthquakeMode || ensoMode ? 'none' : hazeMode ? 'visible' : 'none');
     }
-  }, [map, loaded, earthquakeMode, hazeMode, nationalFireMode]);
+    if (map.getLayer('enso-sst-anomaly')) {
+      map.setLayoutProperty('enso-sst-anomaly', 'visibility', ensoMode ? 'visible' : 'none');
+    }
+  }, [map, loaded, earthquakeMode, hazeMode, nationalFireMode, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return;
@@ -897,7 +919,7 @@ function MapLibreView({
 
   useEffect(() => {
     if (!map || !loaded) return undefined;
-    if (earthquakeMode) return undefined;
+    if (earthquakeMode || ensoMode) return undefined;
     const markers = [];
     const stationPopups = [];
     const currentStations = showStations
@@ -971,12 +993,20 @@ function MapLibreView({
       markers.forEach((marker) => marker.remove());
       stationPopups.forEach((popup) => popup.remove());
     };
-  }, [map, loaded, incidents, incidentStateMap, selectedId, onSelect, showStations, cityTemps, nationalFireMode, active, selected, live, userLocation, earthquakeMode]);
+  }, [map, loaded, incidents, incidentStateMap, selectedId, onSelect, showStations, cityTemps, nationalFireMode, active, selected, live, userLocation, earthquakeMode, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return;
     const isMobile = window.matchMedia('(max-width: 900px)').matches;
-    if (earthquakeMode) {
+    if (ensoMode) {
+      map.flyTo({
+        center: [-150, 0],
+        zoom: 1.65,
+        pitch: 0,
+        bearing: 0,
+        duration: 900,
+      });
+    } else if (earthquakeMode) {
       map.flyTo({
         center: earthquake
           ? [earthquake.longitude, earthquake.latitude]
@@ -1007,10 +1037,10 @@ function MapLibreView({
         duration: 850,
       });
     }
-  }, [map, loaded, hazeMode, nationalFireMode, earthquakeMode, earthquake?.id, is3d]);
+  }, [map, loaded, hazeMode, nationalFireMode, earthquakeMode, ensoMode, earthquake?.id, is3d]);
 
   useEffect(() => {
-    if (!map || !loaded || !selected || hazeMode || nationalFireMode || earthquakeMode || placing) return;
+    if (!map || !loaded || !selected || hazeMode || nationalFireMode || earthquakeMode || ensoMode || placing) return;
     map.flyTo({
       center: asLngLat(selected.location),
       zoom: Math.max(map.getZoom(), window.matchMedia('(max-width: 900px)').matches ? 13 : 16),
@@ -1019,21 +1049,21 @@ function MapLibreView({
         : [0, 0],
       duration: 800,
     });
-  }, [map, loaded, selectedId, hazeMode, nationalFireMode, earthquakeMode, placing, railOpen]);
+  }, [map, loaded, selectedId, hazeMode, nationalFireMode, earthquakeMode, ensoMode, placing, railOpen]);
 
   useEffect(() => {
-    if (map && loaded && hazeFocus) {
+    if (map && loaded && hazeFocus && !ensoMode) {
       const mobileOffset = window.matchMedia('(max-width: 900px)').matches && railOpen
         ? [0, -Math.round(map.getCanvas().clientHeight * 0.22)]
         : [0, 0];
       map.flyTo({ center: asLngLat(hazeFocus), zoom: 7, offset: mobileOffset, duration: 900 });
     }
-  }, [map, loaded, hazeFocus, railOpen]);
+  }, [map, loaded, hazeFocus, railOpen, ensoMode]);
 
   useEffect(() => {
-    if (!map || !loaded) return;
+    if (!map || !loaded || ensoMode) return;
     map.easeTo({ pitch: is3d ? 52 : 0, duration: 650 });
-  }, [map, loaded, is3d]);
+  }, [map, loaded, is3d, ensoMode]);
 
   return (
     <div className={`map maplibre-map ${placing ? 'is-placing' : ''} ${nationalFireMode ? 'is-national-fire-mode' : ''}`}>

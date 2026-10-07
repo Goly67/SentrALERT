@@ -15,6 +15,7 @@ import Analytics from './components/Analytics.jsx';
 import About from './components/About.jsx';
 import ArcGISPanel from './components/ArcGISPanel.jsx';
 import EarthquakeInfo from './components/EarthquakeInfo.jsx';
+import ENSOWatch from './components/ENSOWatch.jsx';
 import { LOGO_SRC, RailNav } from './components/Brand.jsx';
 import {
   HazePanel, HazeTimeline, MapLayersMenu, useHaze,
@@ -67,6 +68,7 @@ export default function App() {
   const [hazeFrame, setHazeFrame] = useState(0); // 0..24, 3 h apart
   const [hazeFocus, setHazeFocus] = useState(null);
   const [nationalFireMode, setNationalFireMode] = useState(false);
+  const [ensoMode, setEnsoMode] = useState(false);
   const [nationalFireHotspots, setNationalFireHotspots] = useState([]);
   const [nationalFireLoading, setNationalFireLoading] = useState(false);
   const [nationalFireFetchedAt, setNationalFireFetchedAt] = useState(null);
@@ -354,6 +356,7 @@ export default function App() {
   // every haze-timeline tick — which would defeat that memoization and
   // force every fire pin to re-render for no reason.
   const selectIncident = useCallback((id) => {
+    setEnsoMode(false);
     setView('list');
     setSelectedId(id);
     setHorizonMinutes(30);
@@ -372,6 +375,7 @@ export default function App() {
     }
 
     addReport(report);
+    setEnsoMode(false);
     setView('list');
     setPendingLocation(null);
     setSelectedId(report.id);
@@ -379,6 +383,7 @@ export default function App() {
   }
 
   function reportExistingFire(location) {
+    setEnsoMode(false);
     setPendingLocation([...location]);
     setView('report');
     setSelectedId(null);
@@ -387,6 +392,7 @@ export default function App() {
   function toggleHaze(on) {
     setHazeOn(on);
     if (on) {
+      setEnsoMode(false);
       setNationalFireMode(false);
       setShowStations(false);
     } else {
@@ -404,11 +410,25 @@ export default function App() {
     setNationalFireMode(on);
     setShowStations(!on);
     if (on) {
+      setEnsoMode(false);
       setHazeOn(false);
       setView('list');
       setSelectedId(null);
       setPendingLocation(null);
       setRailOpen(true);
+    }
+  }
+
+  function toggleEnsoMode(on) {
+    setEnsoMode(on);
+    if (on) {
+      setHazeOn(false);
+      setNationalFireMode(false);
+      setShowStations(false);
+      setView('list');
+      setSelectedId(null);
+      setPendingLocation(null);
+      setRailOpen(false);
     }
   }
 
@@ -529,6 +549,7 @@ export default function App() {
         onSelect={setSelectedId}
         airQualityActive={airQualityActive}
         onReport={() => {
+          setEnsoMode(false);
           setView('report');
           setSelectedId(null);
         }}
@@ -544,6 +565,7 @@ export default function App() {
             setPendingLocation(null);
           }
           setEarthquakeMode(nextEnabled);
+          setEnsoMode(false);
         }}
       />
     );
@@ -573,6 +595,8 @@ export default function App() {
           <MapLayersMenu
             hazeOn={hazeOn}
             onHazeChange={toggleHaze}
+            ensoOn={ensoMode}
+            onEnsoChange={toggleEnsoMode}
             nationalFireOn={nationalFireMode}
             onNationalFireChange={toggleNationalFireMode}
             is3d={mapIs3d}
@@ -590,11 +614,14 @@ export default function App() {
           </div>
         )}
 
+        {!earthquakeMode && <ENSOWatch enabled={ensoMode} />}
+
         {!earthquakeMode && (
           <NotificationCenter
             incidents={activeIncidents}
             reports={reports}
             onSelect={(id) => {
+              setEnsoMode(false);
               setHazeOn(false);
               setView('list');
               setSelectedId(id);
@@ -646,6 +673,7 @@ export default function App() {
           cityTemps={cityTemps}
           historicalOverlay={view === 'historical' ? historicalOverlay : null}
           nationalFireMode={nationalFireMode}
+          ensoMode={ensoMode}
           nationalFireHotspots={nationalFireHotspots}
           arcgisLayer={arcgisLayer}
           earthquake={latestEarthquake}
@@ -711,6 +739,7 @@ export default function App() {
           : null}
         onChange={(tab) => {
           setHazeOn(false);
+          setEnsoMode(false);
           setEarthquakeMode(false);
           setPendingLocation(null);
           setRailOpen(true);

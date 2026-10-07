@@ -278,6 +278,8 @@ export function HazeLayer({ data, frame, focus }) {
 export function MapLayersMenu({
   hazeOn,
   onHazeChange,
+  ensoOn = false,
+  onEnsoChange = () => {},
   nationalFireOn,
   onNationalFireChange,
   is3d = true,
@@ -287,6 +289,11 @@ export function MapLayersMenu({
   hotspots = [],
   fetchedAt = null,
 }) {
+  const menuRef = useRef(null);
+  const toggleLayer = (handler) => (event) => {
+    handler(event.target.checked);
+    if (menuRef.current) menuRef.current.open = false;
+  };
   const formatAge = (minutes) => {
     if (minutes < 60) return `${minutes} min ago`;
     const hours = Math.round(minutes / 60);
@@ -310,7 +317,7 @@ export function MapLayersMenu({
         : 'Satellite fire detections';
 
   return (
-    <details className="map-layers-menu">
+    <details className="map-layers-menu" ref={menuRef}>
       <summary aria-label="Choose map layers">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Z" />
@@ -321,14 +328,21 @@ export function MapLayersMenu({
       </summary>
       <div className="map-layers-flyout">
         <label className="map-layer-option">
-          <input type="checkbox" checked={hazeOn} onChange={(event) => onHazeChange(event.target.checked)} />
+          <input type="checkbox" checked={hazeOn} onChange={toggleLayer(onHazeChange)} />
           <span className="map-layer-copy">
             <strong>Indonesia haze</strong>
             <small>Smoke forecast and fire sources</small>
           </span>
         </label>
         <label className="map-layer-option">
-          <input type="checkbox" checked={nationalFireOn} onChange={(event) => onNationalFireChange(event.target.checked)} />
+          <input type="checkbox" checked={ensoOn} onChange={toggleLayer(onEnsoChange)} />
+          <span className="map-layer-copy">
+            <strong>El Niño / ENSO</strong>
+            <small>Pacific sea-surface temperature anomalies and latest NOAA ONI</small>
+          </span>
+        </label>
+        <label className="map-layer-option">
+          <input type="checkbox" checked={nationalFireOn} onChange={toggleLayer(onNationalFireChange)} />
           <span className="map-layer-copy">
             <strong>PH satellite fires</strong>
             <small>{status}</small>

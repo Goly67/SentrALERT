@@ -68,6 +68,28 @@
 .map-layer-copy strong { color: var(--ink); font-size: 0.8rem; }
 .map-layer-copy small { color: var(--ink-soft); font-size: 0.69rem; line-height: 1.35; }
 
+.enso-map-card {
+  position: absolute; z-index: 540; top: 72px; left: 16px; width: min(320px, calc(100vw - 32px));
+  padding: 14px 16px; border: 1px solid rgba(213, 226, 241, 0.95); border-radius: 15px;
+  color: #102641; background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 28px rgba(14, 34, 64, 0.22); backdrop-filter: blur(10px);
+}
+.enso-map-card-heading, .enso-map-reading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.enso-map-card-kicker { color: #52749D; font-size: 0.66rem; font-weight: 850; letter-spacing: 0.12em; }
+.enso-refresh { min-height: 30px; padding: 3px 9px; border: 1px solid #C7D8EE; border-radius: 8px; background: #F3F7FC; color: #173564; font: inherit; font-size: 0.75rem; font-weight: 700; cursor: pointer; }
+.enso-refresh:disabled { opacity: 0.65; cursor: wait; }
+.enso-map-phase { display: block; margin-top: 8px; color: #173564; font-size: 1rem; line-height: 1.3; }
+.enso-map-reading { margin-top: 7px; color: #52677F; font-size: 0.82rem; }
+.enso-map-reading b { color: #102641; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.enso-map-note, .enso-map-loading, .enso-map-error, .enso-map-stale { margin: 8px 0 0; color: #52677F; font-size: 0.75rem; line-height: 1.4; }
+.enso-map-error { color: #9B2C22; }
+.enso-map-stale { color: #9B5C00; }
+.enso-map-card > a { display: inline-block; margin-top: 8px; color: #245A9D; font-size: 0.73rem; font-weight: 700; text-decoration: underline; }
+@media (max-width: 600px) {
+  .enso-map-card { top: 68px; left: 12px; width: min(270px, calc(100vw - 24px)); padding: 11px 12px; }
+  .enso-map-note { font-size: 0.7rem; }
+}
+
 /* smoke image — softened so 0.5° cells don't read as pixels, and
    cross-faded (see HazeLayer) instead of hard-swapped between frames */
 .haze-smoke-img {
