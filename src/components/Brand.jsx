@@ -53,7 +53,7 @@ const I = (d) => (
 const TABS = [
   { key: 'alerts', label: 'Alerts', icon: I(<><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>) },
   { key: 'safety', label: 'Safety', icon: I(<><path d="M12 3 4 6v6c0 4.5 3.2 7.8 8 9 4.8-1.200 8-4.5 8-9V6l-8-3Z" /><path d="M12 9v6M9 12h6" /></>) },
-  { key: 'analytics', label: 'Analytics', icon: I(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>) },
+  { key: 'analytics', label: 'Analytics', icon: I(<><path d="M4 19V5M4 19h16" /><path d="m7 15 4-4 3 2 5-6" /><circle cx="19" cy="7" r="1" /></>) },
   { key: 'arcgis', label: 'ArcGIS', icon: I(<><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 13 9 5 9-5" /></>) },
   { key: 'about', label: 'About', icon: I(<><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>) },
 ];

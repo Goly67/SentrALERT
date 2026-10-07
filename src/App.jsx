@@ -15,7 +15,7 @@ import Analytics from './components/Analytics.jsx';
 import About from './components/About.jsx';
 import ArcGISPanel from './components/ArcGISPanel.jsx';
 import EarthquakeInfo from './components/EarthquakeInfo.jsx';
-import { RailNav } from './components/Brand.jsx';
+import { LOGO_SRC, RailNav } from './components/Brand.jsx';
 import {
   HazePanel, HazeTimeline, MapLayersMenu, useHaze,
 } from './components/HazeUI.jsx';
@@ -582,6 +582,12 @@ export default function App() {
             hotspots={nationalFireHotspots}
             fetchedAt={nationalFireFetchedAt}
           />
+        )}
+
+        {!earthquakeMode && LOGO_SRC && (
+          <div className="map-brand-logo-frame" aria-hidden="true">
+            <img className="map-brand-logo" src={LOGO_SRC} alt="" draggable="false" />
+          </div>
         )}
 
         {!earthquakeMode && (

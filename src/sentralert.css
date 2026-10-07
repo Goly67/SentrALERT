@@ -100,6 +100,24 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
   filter: drop-shadow(0 2px 2px rgba(23, 53, 100, 0.12)) drop-shadow(0 7px 10px rgba(23, 53, 100, 0.2));
   animation: sa-logo-shadow 5s ease-in-out 700ms infinite;
 }
+.map-brand-logo-frame {
+  position: absolute; z-index: 560; top: 16px; left: 50%; width: min(184px, 24vw);
+  overflow: hidden; padding: 5px 12px; border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 12px; background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 5px 18px rgba(2, 14, 29, 0.28);
+  pointer-events: none; transform: translateX(-50%);
+}
+.map-brand-logo-frame::after {
+  position: absolute; z-index: 1; inset: 0 auto 0 -45%; width: 34%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.78), transparent);
+  content: ''; mix-blend-mode: screen; pointer-events: none; transform: skewX(-18deg);
+  animation: sa-logo-sheen 7.5s ease-in-out 1.4s infinite;
+}
+.map-brand-logo {
+  display: block; width: 100%; height: auto; object-fit: contain;
+  filter: drop-shadow(0 2px 2px rgba(23, 53, 100, 0.12)) drop-shadow(0 7px 10px rgba(23, 53, 100, 0.2));
+  animation: sa-logo-shadow 5s ease-in-out 700ms infinite;
+}
 @keyframes sa-logo-arrive {
   from { opacity: 0; transform: translateY(8px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -625,7 +643,7 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
   margin: -24px -24px 0; padding: 10px 24px; border-radius: 20px 20px 0 0;
 }
 .earthquake-info-panel.is-fullscreen.is-exporting-landscape .sa-logo-frame {
-  flex: 0 1 min(72%, 780px); width: min(72%, 780px); height: 76px; max-height: 76px;
+  flex: 0 0 320px; width: 320px; height: 76px; max-height: 76px;
   animation: none;
 }
 .earthquake-info-panel.is-fullscreen.is-exporting-landscape .sa-logo-frame::after { content: none; }
@@ -848,6 +866,7 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
 }
 
 @media (max-width: 900px) {
+  .map-brand-logo-frame { display: none; }
   html, body, #root { width: 100%; min-width: 0; height: 100%; }
   body { overflow: hidden; overscroll-behavior: none; }
   .app { width: 100%; height: 100vh; height: 100dvh; min-height: 0; }

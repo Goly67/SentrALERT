@@ -198,10 +198,11 @@ function installOperationalLayers(map) {
     id: 'temperature-labels', type: 'symbol', source: 'temperatures',
     paint: { 'text-color': '#fff', 'text-halo-color': '#0E2240', 'text-halo-width': 1.2 },
     layout: {
-      'text-field': ['get', 'label'], 'text-size': 12,
+      'text-field': ['get', 'label'], 'text-size': 14,
       'text-font': ['Noto Sans Regular'],
       'text-anchor': 'center', 'text-justify': 'center',
-      'text-allow-overlap': true, 'text-ignore-placement': true,
+      'text-padding': 3,
+      'text-allow-overlap': false, 'text-ignore-placement': false,
     },
   });
   addSourceAndLayer(map, 'user-area', 'fill', {
