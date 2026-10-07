@@ -530,6 +530,13 @@ function MapLibreView({
     instance.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
     instance.on('load', () => {
       try {
+        instance.setProjection({ type: 'globe' });
+        instance.setSky({
+          'sky-color': '#122B49',
+          'horizon-color': '#A9C9E1',
+          'sky-horizon-blend': 0.16,
+          'atmosphere-blend': 0.88,
+        });
         installOperationalLayers(instance);
         setLoaded(true);
         setMapError('');
