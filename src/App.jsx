@@ -13,6 +13,7 @@ import GeoAlerts from './components/GeoAlerts.jsx';
 import SafetyHub from './components/SafetyHub.jsx';
 import Analytics from './components/Analytics.jsx';
 import About from './components/About.jsx';
+import Team from './components/Team.jsx';
 import ArcGISPanel from './components/ArcGISPanel.jsx';
 import EarthquakeInfo from './components/EarthquakeInfo.jsx';
 import ENSOWatch from './components/ENSOWatch.jsx';
@@ -502,6 +503,8 @@ export default function App() {
     rail = <Analytics incidents={allIncidents} reports={reports} incidentStatusMap={incidentStatusMap} />;
   } else if (view === 'about') {
     rail = <About />;
+  } else if (view === 'team') {
+    rail = <Team />;
   } else if (view === 'arcgis') {
     rail = <ArcGISPanel layer={arcgisLayer} onLayer={setArcgisLayer} incidents={allIncidents} mapRef={mapRef} />;
   } else if (view === 'levels') {
@@ -719,6 +722,7 @@ export default function App() {
                     : view === 'analytics' ? 'Analytics'
                       : view === 'arcgis' ? 'ArcGIS'
                         : view === 'about' ? 'About'
+                          : view === 'team' ? 'Meet the team'
                           : 'Alerts'}
                 </h2>
               </div>
@@ -735,7 +739,7 @@ export default function App() {
 
       <RailNav
         active={railOpen
-          ? (['safety', 'analytics', 'arcgis', 'about'].includes(view) && !hazeOn ? view : 'alerts')
+          ? (['safety', 'analytics', 'arcgis', 'about', 'team'].includes(view) && !hazeOn ? view : 'alerts')
           : null}
         onChange={(tab) => {
           setHazeOn(false);

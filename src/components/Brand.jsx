@@ -56,6 +56,7 @@ const TABS = [
   { key: 'analytics', label: 'Analytics', icon: I(<><path d="M4 19V5M4 19h16" /><path d="m7 15 4-4 3 2 5-6" /><circle cx="19" cy="7" r="1" /></>) },
   { key: 'arcgis', label: 'ArcGIS', icon: I(<><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 13 9 5 9-5" /></>) },
   { key: 'about', label: 'About', icon: I(<><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>) },
+  { key: 'team', label: 'Team', icon: I(<><circle cx="9" cy="8" r="3" /><path d="M3 20v-1a6 6 0 0 1 12 0v1M16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4.6V20" /></>) },
 ];
 
 export function RailNav({ active, onChange }) {
