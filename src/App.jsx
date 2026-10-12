@@ -739,19 +739,21 @@ export default function App() {
         </div>
       )}
 
-      <RailNav
-        active={railOpen
-          ? (['safety', 'analytics', 'arcgis', 'about', 'team'].includes(view) && !hazeOn ? view : 'alerts')
-          : null}
-        onChange={(tab) => {
-          setHazeOn(false);
-          setEnsoMode(false);
-          setEarthquakeMode(false);
-          setPendingLocation(null);
-          setRailOpen(true);
-          if (tab === 'alerts') { setView('list'); setSelectedId(null); } else { setView(tab); }
-        }}
-      />
+      {!ensoMode && (
+        <RailNav
+          active={railOpen
+            ? (['safety', 'analytics', 'arcgis', 'about', 'team'].includes(view) && !hazeOn ? view : 'alerts')
+            : null}
+          onChange={(tab) => {
+            setHazeOn(false);
+            setEnsoMode(false);
+            setEarthquakeMode(false);
+            setPendingLocation(null);
+            setRailOpen(true);
+            if (tab === 'alerts') { setView('list'); setSelectedId(null); } else { setView(tab); }
+          }}
+        />
+      )}
 
       {nearbyIncident && evacuationIncidentId && createPortal(
         <div className="evacuation-backdrop" role="presentation">

@@ -69,7 +69,7 @@
 .map-layer-copy small { color: var(--ink-soft); font-size: 0.69rem; line-height: 1.35; }
 
 .enso-map-legend {
-  position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); z-index: 1300; display: grid;
+  position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 1300; display: grid;
   width: min(500px, calc(100vw - 40px)); min-width: 0; gap: 8px; padding: 12px 14px 10px;
   border: 1px solid rgba(160, 191, 222, 0.5); border-radius: 11px;
   background: rgba(8, 27, 50, 0.94); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
@@ -97,8 +97,10 @@
 .enso-map-legend-toggle:active { transform: translateY(0) scale(0.98); }
 .enso-map-legend-toggle:focus-visible { outline: 2px solid #7FD5E5; outline-offset: 3px; }
 .enso-map-legend-toggle.is-close {
-  position: absolute; z-index: 1; top: -13px; right: -13px; width: 36px; height: 36px; padding: 0;
-  border-radius: 50%;
+  position: absolute; z-index: 1; top: -13px; right: -13px; display: grid; place-items: center;
+  box-sizing: border-box; inline-size: 40px !important; min-inline-size: 40px !important; max-inline-size: 40px !important;
+  block-size: 40px !important; min-block-size: 40px !important; max-block-size: 40px !important;
+  aspect-ratio: 1; flex: none; padding: 0; border-radius: 50% !important;
 }
 .enso-map-legend-toggle.is-open { min-height: 40px; padding: 0 14px; border-radius: 999px; }
 .enso-map-legend-close-icon { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
@@ -108,14 +110,14 @@
 }
 .enso-map-legend.is-collapsed .enso-map-legend-chevron { transform: rotate(180deg); }
 @media (max-width: 900px) {
-  .enso-map-legend { bottom: calc(100px + env(safe-area-inset-bottom, 0px)); width: min(440px, calc(100vw - 40px)); gap: 7px; padding: 10px 12px 9px; }
+  .enso-map-legend { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(440px, calc(100vw - 40px)); gap: 7px; padding: 10px 12px 9px; }
   .enso-map-legend.is-collapsed { width: auto; }
   .enso-sst-legend-image { max-width: 400px; }
 }
 @media (max-width: 700px) {
   .enso-map-legend { width: min(420px, calc(100vw - 40px)); padding: 9px 11px 8px; gap: 6px; }
   .enso-map-legend.is-collapsed { width: auto; }
-  .enso-map-legend-toggle.is-close { width: 38px; height: 38px; top: -13px; right: -13px; }
+  .enso-map-legend-toggle.is-close { top: -13px; right: -13px; }
   .enso-map-legend-toggle.is-open { min-height: 42px; padding: 0 14px; font-size: 0.7rem; }
   .enso-sst-legend-image { max-width: 380px; }
 }
