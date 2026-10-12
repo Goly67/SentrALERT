@@ -27,6 +27,12 @@ const HAZE_BOUNDS = [[96, -9.5], [144, 21.5]];
 const MOBILE_HAZE_BOUNDS = [[108, -8.5], [132, 20.5]];
 const PHILIPPINES_FIRE_BOUNDS = [[116, 4.5], [127.5, 21.5]];
 const ENSO_SST_TILE_URL = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png';
+const ENSO_MAX_ZOOM = 8;
+const getEnsoMinZoom = (map) => {
+  const { width, height } = map.getContainer().getBoundingClientRect();
+  if (!width || !height) return 0;
+  return Math.max(-2, Math.min(Math.log2(width / 512), Math.log2(height / 512)));
+};
 const EARTHQUAKE_ONLY_LAYERS = [
   'historical-spread', 'historical-direction', 'spread-ghosts', 'spread-live',
   'wind-direction', 'report-points', 'historical-hotspots', 'fire-hotspots',
@@ -514,6 +520,7 @@ function MapLibreView({
   const [map, setMap] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [mapError, setMapError] = useState('');
+  const [ensoLegendOpen, setEnsoLegendOpen] = useState(true);
   const selected = incidents.find((incident) => incident.id === selectedId);
   const status = selected ? incidentStateMap[selected.id] ?? 'active' : 'active';
   const active = Boolean(selected && status === 'active' && selected.alarm.level > 0);
@@ -579,14 +586,39 @@ function MapLibreView({
 
   useEffect(() => {
     if (!map || !loaded) return undefined;
-    const observer = new ResizeObserver(() => map.resize());
+    const resizeMap = () => {
+      map.resize();
+      if (ensoMode) map.setMinZoom(getEnsoMinZoom(map));
+    };
+    const observer = new ResizeObserver(resizeMap);
     observer.observe(containerRef.current);
-    const timeout = window.setTimeout(() => map.resize(), 340);
+    const timeout = window.setTimeout(resizeMap, 340);
     return () => {
       observer.disconnect();
       window.clearTimeout(timeout);
     };
-  }, [map, loaded, railOpen]);
+  }, [map, loaded, railOpen, ensoMode]);
+
+  useEffect(() => {
+    if (!map || !loaded) return;
+    if (ensoMode) {
+      map.setProjection({ type: 'mercator' });
+      map.setRenderWorldCopies(true);
+      map.setMinZoom(getEnsoMinZoom(map));
+      map.setMaxZoom(ENSO_MAX_ZOOM);
+      map.setPitch(0);
+      map.setBearing(0);
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      return;
+    }
+    map.setMinZoom(0);
+    map.setMaxZoom(24);
+    map.setRenderWorldCopies(true);
+    map.dragRotate.enable();
+    map.touchZoomRotate.enableRotation();
+    map.setProjection({ type: 'globe' });
+  }, [map, loaded, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return undefined;
@@ -1001,7 +1033,7 @@ function MapLibreView({
     if (ensoMode) {
       map.flyTo({
         center: [-150, 0],
-        zoom: 1.65,
+        zoom: Math.max(1.65, getEnsoMinZoom(map)),
         pitch: 0,
         bearing: 0,
         duration: 900,
@@ -1118,6 +1150,39 @@ function MapLibreView({
           </div>
         )}
       </section>}
+      {ensoMode && <aside className={`enso-map-legend ${ensoLegendOpen ? '' : 'is-collapsed'}`} aria-label="Sea-surface temperature anomaly map legend">
+        <button
+          type="button"
+          className={`enso-map-legend-toggle ${ensoLegendOpen ? 'is-close' : 'is-open'}`}
+          onClick={() => setEnsoLegendOpen((open) => !open)}
+          aria-expanded={ensoLegendOpen}
+          aria-controls="enso-map-legend-content"
+          aria-label={ensoLegendOpen ? 'Hide map legend' : 'Show map legend'}
+        >
+          {ensoLegendOpen ? (
+            <svg className="enso-map-legend-close-icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m5 5 10 10M15 5 5 15" />
+            </svg>
+          ) : (
+            <>
+              Map legend
+              <svg className="enso-map-legend-chevron" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m5 7.5 5 5 5-5" />
+              </svg>
+            </>
+          )}
+        </button>
+        {ensoLegendOpen && (
+          <div className="enso-map-legend-content" id="enso-map-legend-content">
+            <strong>Sea-surface temperature anomaly</strong>
+            <img
+              className="enso-sst-legend-image"
+              src="https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_Anomalies_H.svg"
+              alt="NASA GHRSST sea-surface temperature anomaly scale in degrees Celsius"
+            />
+          </div>
+        )}
+      </aside>}
       {mapError && <div className="maplibre-error" role="status">Map unavailable: {mapError}</div>}
     </div>
   );

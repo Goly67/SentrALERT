@@ -102,6 +102,22 @@ export default function About() {
             </p>
           </div>
         </div>
+        <div className="about-data-note-satellites">
+          <span className="about-data-note-satellite-icon" aria-hidden="true">≈</span>
+          <div>
+            <h4>El Niño map: satellite-derived ocean observations.</h4>
+            <p>
+              The ocean-temperature anomaly layer uses NASA GIBS tiles of the GHRSST
+              Level 4 MUR analysis. It is a processed sea-surface temperature product
+              based on satellite observations—not a raw satellite photograph or a
+              forecast. The El Niño status is reported separately using NOAA’s
+              Oceanic Niño Index; rainfall outlooks are model guidance.
+              {' '}<a href="https://gibs.earthdata.nasa.gov/" target="_blank" rel="noreferrer">NASA GIBS map source</a>
+              {' '}· <a href="https://www.ghrsst.org/ghrsst-data-services/" target="_blank" rel="noreferrer">GHRSST data</a>
+              {' '}· <a href="https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt" target="_blank" rel="noreferrer">NOAA ONI</a>
+            </p>
+          </div>
+        </div>
         <div className="about-data-note-footer">
           <span className="about-data-note-mark" aria-hidden="true">i</span>
           <p>SentraLERT does not replace official alerts or emergency instructions.</p>

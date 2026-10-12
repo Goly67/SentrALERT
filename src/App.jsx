@@ -87,6 +87,7 @@ export default function App() {
 
   const appRef = useRef(null);
   const mapRef = useRef(null);
+  const stationsBeforeEnsoRef = useRef(null);
   const recentAdminReportIdsRef = useRef(new Set());
   const reportsRef = useRef(reports);
   reportsRef.current = reports;
@@ -423,6 +424,7 @@ export default function App() {
   function toggleEnsoMode(on) {
     setEnsoMode(on);
     if (on) {
+      stationsBeforeEnsoRef.current = showStations;
       setHazeOn(false);
       setNationalFireMode(false);
       setShowStations(false);
@@ -430,6 +432,9 @@ export default function App() {
       setSelectedId(null);
       setPendingLocation(null);
       setRailOpen(false);
+    } else if (stationsBeforeEnsoRef.current !== null) {
+      setShowStations(stationsBeforeEnsoRef.current);
+      stationsBeforeEnsoRef.current = null;
     }
   }
 
