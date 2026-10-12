@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as maplibregl from 'maplibre-gl';
 import mapLibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { SURIGAO_CENTER } from '../data/surigao.js';
@@ -1150,7 +1151,7 @@ function MapLibreView({
           </div>
         )}
       </section>}
-      {ensoMode && <aside className={`enso-map-legend ${ensoLegendOpen ? '' : 'is-collapsed'}`} aria-label="Sea-surface temperature anomaly map legend">
+      {ensoMode && createPortal(<aside className={`enso-map-legend ${ensoLegendOpen ? '' : 'is-collapsed'}`} aria-label="Sea-surface temperature anomaly map legend">
         <button
           type="button"
           className={`enso-map-legend-toggle ${ensoLegendOpen ? 'is-close' : 'is-open'}`}
@@ -1182,7 +1183,7 @@ function MapLibreView({
             />
           </div>
         )}
-      </aside>}
+      </aside>, document.body)}
       {mapError && <div className="maplibre-error" role="status">Map unavailable: {mapError}</div>}
     </div>
   );

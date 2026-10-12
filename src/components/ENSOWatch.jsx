@@ -38,7 +38,6 @@ export default function ENSOWatch({ enabled }) {
   return (
     <aside className="enso-map-card" aria-label="El Niño and ENSO status" aria-live="polite">
       <div className="enso-map-card-heading">
-        <span className="enso-map-card-kicker">PACIFIC CLIMATE WATCH</span>
         <button
           type="button"
           className="enso-refresh"
