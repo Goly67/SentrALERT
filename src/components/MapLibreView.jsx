@@ -1181,6 +1181,9 @@ function MapLibreView({
               src="https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_Anomalies_H.svg"
               alt="NASA GHRSST sea-surface temperature anomaly scale in degrees Celsius"
             />
+            <p className="enso-map-legend-note">
+              Colors show how observed sea-surface temperatures differ from average, in °C. This is a satellite-derived analysis, not a forecast.
+            </p>
           </div>
         )}
       </aside>, document.body)}
