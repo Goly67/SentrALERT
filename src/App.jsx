@@ -16,7 +16,6 @@ import About from './components/About.jsx';
 import Team from './components/Team.jsx';
 import ArcGISPanel from './components/ArcGISPanel.jsx';
 import EarthquakeInfo from './components/EarthquakeInfo.jsx';
-import ENSOWatch from './components/ENSOWatch.jsx';
 import { LOGO_SRC, RailNav } from './components/Brand.jsx';
 import {
   HazePanel, HazeTimeline, MapLayersMenu, useHaze,
@@ -621,8 +620,6 @@ export default function App() {
             <img className="map-brand-logo" src={LOGO_SRC} alt="" draggable="false" />
           </div>
         )}
-
-        {!earthquakeMode && <ENSOWatch enabled={ensoMode} />}
 
         {!earthquakeMode && (
           <NotificationCenter
