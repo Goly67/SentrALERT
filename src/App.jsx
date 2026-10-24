@@ -16,6 +16,7 @@ import About from './components/About.jsx';
 import Team from './components/Team.jsx';
 import ArcGISPanel from './components/ArcGISPanel.jsx';
 import EarthquakeInfo from './components/EarthquakeInfo.jsx';
+import EarthquakeExitChip from './components/EarthquakeExitChip.jsx';
 import { LOGO_SRC, RailNav } from './components/Brand.jsx';
 import {
   HazePanel, HazeTimeline, MapLayersMenu, useHaze,
@@ -25,9 +26,13 @@ import { fetchWind, FALLBACK_WIND } from './lib/wind.js';
 import { fetchLocalWeather, fetchCityTemperatures } from './lib/localWeather.js';
 import { fetchEarthquakeEvents } from './lib/earthquakes.js';
 import { fetchThermalHotspots } from './lib/thermal.js';
+import { buildFireRiskFeatures } from './lib/fireRisk.js';
+import { fetchEnsoContext } from './lib/enso.js';
 import { destination, distanceMeters } from './lib/geo.js';
 import { isPointInCaraga } from './lib/haze.js';
 import { cities } from './data/bfpStations.js';
+import { SURIGAO_CENTER } from './data/surigao.js';
+import { historicalFires } from './data/historicalFires.js';
 import { playAdminReportSound } from './lib/alarmAudio.js';
 import { getReportSpamMessage } from './lib/reportGuard.js';
 import { readIncidentStatusMap, writeIncidentStatusMap } from './lib/incidentStatusStore.js';
@@ -48,6 +53,7 @@ export default function App() {
   const [thermalHotspots, setThermalHotspots] = useState([]);
   const [postApprovals, setPostApprovals] = useState({});
   const [wind, setWind] = useState(FALLBACK_WIND);
+  const [ensoContext, setEnsoContext] = useState({ phase: 'Loading', latest: null });
   const [localWeather, setLocalWeather] = useState(null);
   const [cityTemps, setCityTemps] = useState([]);
   const [earthquakeMode, setEarthquakeMode] = useState(false);
@@ -67,11 +73,8 @@ export default function App() {
   const [hazeOn, setHazeOn] = useState(false); // haze is a map layer, not a separate mode
   const [hazeFrame, setHazeFrame] = useState(0); // 0..24, 3 h apart
   const [hazeFocus, setHazeFocus] = useState(null);
-  const [nationalFireMode, setNationalFireMode] = useState(false);
   const [ensoMode, setEnsoMode] = useState(false);
-  const [nationalFireHotspots, setNationalFireHotspots] = useState([]);
-  const [nationalFireLoading, setNationalFireLoading] = useState(false);
-  const [nationalFireFetchedAt, setNationalFireFetchedAt] = useState(null);
+  const [fireRiskMode, setFireRiskMode] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
   const [locationAccuracy, setLocationAccuracy] = useState(null);
   const [evacuationIncidentId, setEvacuationIncidentId] = useState(null);
@@ -138,26 +141,6 @@ export default function App() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  useEffect(() => {
-    if (!nationalFireMode) return undefined;
-    let cancelled = false;
-    const refresh = () => {
-      setNationalFireLoading(true);
-      fetchThermalHotspots({ national: true })
-        .then((hotspots) => {
-          if (cancelled) return;
-          setNationalFireHotspots(hotspots);
-          setNationalFireFetchedAt(Date.now());
-        })
-        .finally(() => { if (!cancelled) setNationalFireLoading(false); });
-    };
-    refresh();
-    const id = setInterval(refresh, 60 * 1000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [nationalFireMode]);
   useEffect(() => subscribeToPostApprovals(setPostApprovals), []);
 
   useEffect(() => {
@@ -189,6 +172,19 @@ export default function App() {
     const id = setInterval(() => {
       fetchWind(undefined, true).then((w) => !cancelled && setWind(w));
     }, REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => fetchEnsoContext()
+      .then((context) => { if (!cancelled) setEnsoContext(context); })
+      .catch(() => { if (!cancelled) setEnsoContext({ phase: 'Unavailable', latest: null }); });
+    refresh();
+    const id = setInterval(refresh, 6 * 60 * 60 * 1000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -275,6 +271,10 @@ export default function App() {
   const activeIncidents = useMemo(() => incidents.filter((incident) => (
     (incidentStatusMap[incident.id] ?? 'active') === 'active'
   )), [incidents, incidentStatusMap]);
+  const fireRiskData = useMemo(
+    () => buildFireRiskFeatures(historicalFires, usingFirebase ? allIncidents : [], wind, ensoContext),
+    [allIncidents, wind, ensoContext]
+  );
   const airQualityActive = airQualitySignals.some((signal) => {
     const detectedAt = new Date(signal.detectedAt).getTime();
     return Number.isFinite(detectedAt) && Date.now() - detectedAt <= 30 * 60 * 1000;
@@ -394,7 +394,7 @@ export default function App() {
     setHazeOn(on);
     if (on) {
       setEnsoMode(false);
-      setNationalFireMode(false);
+      setFireRiskMode(false);
       setShowStations(false);
     } else {
       setShowStations(true);
@@ -407,25 +407,12 @@ export default function App() {
     }
   }
 
-  function toggleNationalFireMode(on) {
-    setNationalFireMode(on);
-    setShowStations(!on);
-    if (on) {
-      setEnsoMode(false);
-      setHazeOn(false);
-      setView('list');
-      setSelectedId(null);
-      setPendingLocation(null);
-      setRailOpen(true);
-    }
-  }
-
   function toggleEnsoMode(on) {
     setEnsoMode(on);
     if (on) {
       stationsBeforeEnsoRef.current = showStations;
       setHazeOn(false);
-      setNationalFireMode(false);
+      setFireRiskMode(false);
       setShowStations(false);
       setView('list');
       setSelectedId(null);
@@ -435,9 +422,43 @@ export default function App() {
       setShowStations(stationsBeforeEnsoRef.current);
       stationsBeforeEnsoRef.current = null;
     }
+    if (!on && mapRef.current) {
+      const map = mapRef.current;
+      const isMobile = window.matchMedia('(max-width: 900px)').matches;
+      map.stop();
+      map.setMinZoom(0);
+      map.setMaxZoom(24);
+      map.setProjection({ type: 'globe' });
+      map.jumpTo({
+        center: [SURIGAO_CENTER[1], SURIGAO_CENTER[0]],
+        zoom: isMobile ? 13 : 14,
+        pitch: mapIs3d ? 52 : 0,
+        bearing: 0,
+      });
+    }
+  }
+
+  function toggleFireRiskLayer(on) {
+    if (on && ensoMode) toggleEnsoMode(false);
+    setFireRiskMode(on);
+  }
+
+  // Leaves the earthquake layer and returns to the normal fire map.
+  // Used by the floating "Back to fire map" pill, which stays visible even
+  // after the Alerts panel has been closed with the X.
+  function exitEarthquakeMode() {
+    setEarthquakeMode(false);
+    setEarthquakeReportOpen(false);
+    setEnsoMode(false);
   }
 
   const reporting = !hazeOn && view === 'report';
+  const normalMap = !hazeOn && !earthquakeMode && !ensoMode && !reporting
+    && !['safety', 'analytics', 'about', 'team', 'arcgis', 'levels', 'historical'].includes(view);
+  const showFireRisk = fireRiskMode && normalMap;
+  useEffect(() => {
+    if (!normalMap && fireRiskMode) setFireRiskMode(false);
+  }, [normalMap, fireRiskMode]);
   const showHazeTimeline = hazeOn && Boolean(haze.data?.frames);
   const selectedIsActive = selected
     && (incidentStatusMap[selected.id] ?? 'active') === 'active';
@@ -567,7 +588,7 @@ export default function App() {
           const nextEnabled = !earthquakeMode;
           if (nextEnabled) {
             setHazeOn(false);
-            setNationalFireMode(false);
+            setFireRiskMode(false);
             setSelectedId(null);
             setPendingLocation(null);
           }
@@ -604,15 +625,30 @@ export default function App() {
             onHazeChange={toggleHaze}
             ensoOn={ensoMode}
             onEnsoChange={toggleEnsoMode}
-            nationalFireOn={nationalFireMode}
-            onNationalFireChange={toggleNationalFireMode}
+            fireRiskAvailable={normalMap || ensoMode}
+            fireRiskOn={showFireRisk}
+            onFireRiskChange={toggleFireRiskLayer}
             is3d={mapIs3d}
             onToggle3d={() => setMapIs3d((value) => !value)}
             onResetDirection={resetMapDirection}
-            loading={nationalFireLoading}
-            hotspots={nationalFireHotspots}
-            fetchedAt={nationalFireFetchedAt}
           />
+        )}
+        {showFireRisk && (
+          <aside className="fire-risk-legend" aria-label="Fire risk map legend">
+            <strong>Fire Risk Predictor</strong>
+            <p>History + current wind + NOAA ENSO context</p>
+            <div><i className="is-elevated" /> Elevated</div>
+            <div><i className="is-moderate" /> Moderate</div>
+            <div><i className="is-lower" /> Lower / limited records</div>
+            <div className="fire-risk-context">
+              Wind {fireRiskData.context.windKmh} km/h toward {fireRiskData.context.windDirection} · humidity {fireRiskData.context.humidity}% · {fireRiskData.context.windSource === 'open-meteo' ? 'live' : 'fallback'}
+            </div>
+            <div className="fire-risk-context">ENSO: {fireRiskData.context.oniPhase}{fireRiskData.context.oni == null ? '' : ` · ONI ${fireRiskData.context.oni.toFixed(1)}`}</div>
+            <div className={`fire-risk-confidence is-${fireRiskData.context.confidence}`}>
+              Evidence confidence: {fireRiskData.context.confidence.toUpperCase()} · {fireRiskData.context.caseCount} recorded fire{fireRiskData.context.caseCount === 1 ? '' : 's'}
+            </div>
+            <small>Fire markers may be approximate when reports do not provide an exact address.</small>
+          </aside>
         )}
 
         {!earthquakeMode && LOGO_SRC && (
@@ -677,9 +713,11 @@ export default function App() {
           localWeather={localWeather}
           cityTemps={cityTemps}
           historicalOverlay={view === 'historical' ? historicalOverlay : null}
-          nationalFireMode={nationalFireMode}
+          fireRiskMode={showFireRisk}
+          fireRiskFeatures={fireRiskData.zones}
+          fireRiskLabels={fireRiskData.labels}
+          fireRiskHistory={fireRiskData.history}
           ensoMode={ensoMode}
-          nationalFireHotspots={nationalFireHotspots}
           arcgisLayer={arcgisLayer}
           earthquake={latestEarthquake}
           selectedEarthquake={selectedEarthquake}
@@ -754,6 +792,8 @@ export default function App() {
           }}
         />
       )}
+
+      {earthquakeMode && <EarthquakeExitChip onExit={exitEarthquakeMode} />}
 
       {nearbyIncident && evacuationIncidentId && createPortal(
         <div className="evacuation-backdrop" role="presentation">

@@ -1059,3 +1059,54 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
 @media (min-width: 601px) and (max-width: 1024px) and (min-height: 501px) and (prefers-reduced-motion: reduce) {
   .category-modal { animation: none; }
 }
+
+/* Fire-risk map popups: bright evidence card with separate confidence badges. */
+.maplibre-map .fire-risk-popup .maplibregl-popup-content {
+  box-sizing: border-box; width: min(314px, calc(100vw - 42px)); padding: 0; overflow: visible;
+  border: 1px solid rgba(255, 255, 255, 0.96); border-radius: 17px;
+  background: linear-gradient(150deg, #FFFFFF 0%, #FFFFFF 65%, #F4F8FD 100%);
+  box-shadow: 0 18px 48px rgba(16, 37, 66, 0.24), 0 3px 12px rgba(16, 37, 66, 0.12);
+  color: #14243B;
+}
+.fire-risk-popup-card {
+  position: relative; display: grid; gap: 11px; padding: 17px 16px 13px;
+  overflow: hidden; border-radius: inherit;
+  animation: fire-risk-popup-enter 220ms cubic-bezier(.2,.8,.2,1) both;
+}
+.fire-risk-popup-card::before {
+  position: absolute; inset: 0 0 auto; height: 3px; content: '';
+  background: linear-gradient(90deg, #F04438, #F79009 48%, #FFD166);
+}
+.fire-risk-popup-heading { display: grid; gap: 4px; padding-right: 22px; }
+.fire-risk-popup-eyebrow { color: #687A92; font: 800 0.57rem/1.2 var(--font); letter-spacing: 0.13em; }
+.fire-risk-popup-title { color: #10243F; font: 800 1.08rem/1.25 var(--font-display); letter-spacing: -0.02em; }
+.fire-risk-popup-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.fire-risk-popup-badge { display: inline-flex; align-items: center; min-height: 24px; padding: 4px 8px; border: 1px solid transparent; border-radius: 999px; font: 800 0.63rem/1 var(--font); letter-spacing: 0.01em; text-transform: capitalize; }
+.fire-risk-popup-badge.is-risk-elevated { border-color: #F2B8B4; background: #FFF0EF; color: #A92C24; }
+.fire-risk-popup-badge.is-risk-moderate { border-color: #F2D19B; background: #FFF7E8; color: #925400; }
+.fire-risk-popup-badge.is-risk-lower { border-color: #B7DCC9; background: #EFF9F3; color: #286445; }
+.fire-risk-popup-badge.is-record-type { border-color: #D9E2EF; background: #F0F4F9; color: #3C536F; }
+.fire-risk-popup-badge.is-confidence-high { border-color: #B8E1CA; background: #EAF8F0; color: #1D7047; }
+.fire-risk-popup-badge.is-confidence-moderate { border-color: #F1D69D; background: #FFF7E7; color: #8D5A00; }
+.fire-risk-popup-badge.is-confidence-low { border-color: #D9E2EB; background: #F2F5F8; color: #53677F; }
+.fire-risk-popup-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fire-risk-popup-metric { display: flex; align-items: baseline; gap: 7px; min-width: 0; padding: 9px 10px; border: 1px solid #E1E8F0; border-radius: 11px; background: #F5F8FC; }
+.fire-risk-popup-metric strong { color: #172A44; font: 850 1.3rem/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.fire-risk-popup-metric span { color: #63748A; font: 650 0.62rem/1.2 var(--font); }
+.fire-risk-popup-context { display: grid; gap: 7px; padding: 2px 1px; }
+.fire-risk-popup-context p { display: flex; align-items: center; gap: 8px; margin: 0; color: #344861; font: 650 0.7rem/1.35 var(--font); }
+.fire-risk-popup-context .fire-risk-popup-location { display: block; padding: 8px 10px; border: 1px solid #E0E7F0; border-radius: 10px; background: #F6F8FB; color: #52657C; font: 600 0.65rem/1.45 var(--font); }
+.fire-risk-popup-context-icon { display: grid; flex: none; place-items: center; width: 21px; height: 21px; border: 1px solid #E0E7F0; border-radius: 7px; background: #F6F8FB; color: #D17A00; font-size: 0.9rem; }
+.fire-risk-popup-note { padding-top: 9px; border-top: 1px solid #E2E8F0; color: #64758A; font: 500 0.61rem/1.45 var(--font); }
+.maplibre-map .fire-risk-popup .maplibregl-popup-close-button { z-index: 2; top: 8px; right: 8px; display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 1px solid #DEE6EF; border-radius: 8px; background: #F5F8FB; color: #40546D; font-size: 17px; line-height: 1; }
+.maplibre-map .fire-risk-popup .maplibregl-popup-close-button:hover { background: #EAF0F6; color: #10243F; }
+.maplibre-map .fire-risk-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibre-map .fire-risk-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibre-map .fire-risk-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip,
+.maplibre-map .fire-risk-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-color: transparent; }
+.maplibre-map .fire-risk-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #FFFFFF; }
+.maplibre-map .fire-risk-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: #FFFFFF; }
+.maplibre-map .fire-risk-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: #FFFFFF; }
+.maplibre-map .fire-risk-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: #FFFFFF; }
+@keyframes fire-risk-popup-enter { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .fire-risk-popup-card { animation: none; } }

@@ -280,42 +280,18 @@ export function MapLayersMenu({
   onHazeChange,
   ensoOn = false,
   onEnsoChange = () => {},
-  nationalFireOn,
-  onNationalFireChange,
+  fireRiskAvailable = true,
+  fireRiskOn = false,
+  onFireRiskChange = () => {},
   is3d = true,
   onToggle3d,
   onResetDirection,
-  loading = false,
-  hotspots = [],
-  fetchedAt = null,
 }) {
   const menuRef = useRef(null);
   const toggleLayer = (handler) => (event) => {
     handler(event.target.checked);
     if (menuRef.current) menuRef.current.open = false;
   };
-  const formatAge = (minutes) => {
-    if (minutes < 60) return `${minutes} min ago`;
-    const hours = Math.round(minutes / 60);
-    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-    const days = Math.round(hours / 24);
-    return `${days} day${days === 1 ? '' : 's'} ago`;
-  };
-  const newestDetectionHours = hotspots.reduce((newest, hotspot) => (
-    Number.isFinite(hotspot.hoursOld) ? Math.min(newest, hotspot.hoursOld) : newest
-  ), Infinity);
-  const newestDetectionAge = Number.isFinite(newestDetectionHours)
-    ? Math.max(1, Math.round(newestDetectionHours * 60))
-    : null;
-  const fetchAge = fetchedAt ? Math.max(1, Math.round((Date.now() - fetchedAt) / 60000)) : null;
-  const status = loading
-    ? 'Refreshing satellite detections'
-    : newestDetectionAge != null
-      ? `${hotspots.length} detections · newest ${formatAge(newestDetectionAge)}`
-      : fetchAge != null
-        ? `${hotspots.length} detections · checked ${fetchAge} min ago`
-        : 'Satellite fire detections';
-
   return (
     <details className="map-layers-menu" ref={menuRef}>
       <summary aria-label="Choose map layers">
@@ -341,13 +317,19 @@ export function MapLayersMenu({
             <small>Pacific sea-surface temperature anomalies and latest NOAA ONI</small>
           </span>
         </label>
-        <label className="map-layer-option">
-          <input type="checkbox" checked={nationalFireOn} onChange={toggleLayer(onNationalFireChange)} />
-          <span className="map-layer-copy">
-            <strong>PH satellite fires</strong>
-            <small>{status}</small>
-          </span>
-        </label>
+        {fireRiskAvailable && (
+          <label className={`map-layer-option fire-risk-layer-option ${fireRiskOn ? 'is-active' : ''}`}>
+            <input type="checkbox" checked={fireRiskOn} onChange={toggleLayer(onFireRiskChange)} />
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12.2 2.5c.5 3.2-1.1 4.8-2.4 6.1-1.5 1.5-3 3-3 5.7a5.2 5.2 0 0 0 10.4 0c0-2.1-.7-3.8-2-5.5-.1 2-1 2.8-1.8 3.1.5-3.7-1.2-6.7-1.2-9.4Z" />
+              <path d="M12.1 13.7c-.2 1.3-1.5 2-1.5 3.3a1.5 1.5 0 0 0 3 0c0-1.2-.8-2-1.5-3.3Z" />
+            </svg>
+            <span className="map-layer-copy">
+              <strong>Fire Risk Predictor</strong>
+              <small>History, wind, and NOAA ENSO</small>
+            </span>
+          </label>
+        )}
         <div className="map-layer-controls" aria-label="3D map controls">
           <button type="button" className="map-3d-toggle" onClick={onToggle3d} aria-pressed={is3d}>
             <svg className="map-control-icon map-3d-icon" viewBox="0 0 24 24" aria-hidden="true">

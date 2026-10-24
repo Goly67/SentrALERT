@@ -1,6 +1,6 @@
 /* Indonesia haze view — reuses the base tokens from styles.css */
 
-.map-layers-menu { position: absolute; left: 16px; top: 16px; z-index: 550; }
+.map-layers-menu { position: absolute; left: 16px; top: 16px; z-index: 570; }
 .map-layers-menu summary {
   display: flex; align-items: center; gap: 8px; padding: 9px 12px;
   border: 1px solid var(--line); border-radius: 12px; color: var(--ink);
@@ -16,6 +16,31 @@
   border-right: 1.5px solid currentColor; transform: rotate(45deg);
 }
 .map-layers-menu[open] .map-layers-chevron { transform: rotate(225deg); }
+.fire-risk-layer-option { align-items: center; border: 1px solid transparent; }
+.fire-risk-layer-option.is-active { border-color: rgba(180, 35, 24, 0.24); background: #FFF1EF; }
+.fire-risk-layer-option input { accent-color: #B42318; }
+.fire-risk-layer-option > svg { flex: none; width: 20px; height: 20px; margin: 0 0 0 -5px; fill: #B42318; stroke: #fff; stroke-width: 1.2; stroke-linejoin: round; }
+.fire-risk-layer-option.is-active > svg { fill: #7A271A; }
+.fire-risk-legend {
+  position: absolute; z-index: 560; top: 64px; left: 16px; display: grid; gap: 7px;
+  width: min(260px, calc(100vw - 32px)); padding: 13px 14px;
+  border: 1px solid rgba(220, 228, 238, 0.96); border-radius: 14px;
+  background: rgba(255, 255, 255, 0.97); color: var(--ink); box-shadow: var(--shadow-lift);
+  backdrop-filter: blur(10px); font-size: 0.72rem;
+}
+.fire-risk-legend > strong { font-size: 0.84rem; }
+.fire-risk-legend p { margin: -3px 0 2px; color: var(--ink-soft); font-size: 0.68rem; }
+.fire-risk-legend div { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.fire-risk-legend div i { width: 12px; height: 12px; border: 1px solid rgba(14, 34, 64, 0.16); border-radius: 4px; }
+.fire-risk-legend .is-elevated { background: #D92D20; }
+.fire-risk-legend .is-moderate { background: #F79009; }
+.fire-risk-legend .is-lower { background: #4B9B74; }
+.fire-risk-context { color: var(--ink-soft); font-size: 0.67rem; line-height: 1.35; }
+.fire-risk-confidence { padding: 6px 8px; border-radius: 8px; font-size: 0.65rem; font-weight: 800; }
+.fire-risk-confidence.is-low { background: #FFF4E5; color: #8A4B08; }
+.fire-risk-confidence.is-moderate { background: #FEF0C7; color: #7A4B00; }
+.fire-risk-confidence.is-high { background: #ECFDF3; color: #067647; }
+.fire-risk-legend small { margin-top: 3px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 0.64rem; line-height: 1.4; }
 .map-layers-flyout {
   position: absolute; top: 0; left: calc(100% + 8px); width: 248px; padding: 6px;
   border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.97);
@@ -208,6 +233,7 @@
 
 @media (max-width: 900px) {
   .map-layers-menu { left: 12px; top: 12px; }
+  .fire-risk-legend { top: 60px; left: 12px; }
   .map-layers-flyout { width: min(248px, calc(100vw - 90px)); }
   .timeline.haze-timeline { width: calc(100% - 24px); }
   .haze-readout { min-width: 88px; }
@@ -215,6 +241,7 @@
 }
 @media (max-width: 600px) {
   .map-layers-menu { left: 10px; top: 10px; }
+  .fire-risk-legend { top: 58px; left: 10px; }
   .map-layers-flyout {
     top: calc(100% + 8px);
     left: 0;

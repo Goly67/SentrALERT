@@ -11,6 +11,7 @@ import {
 import { destination, USER_LOCATION_PERIMETER_M } from '../lib/geo.js';
 import { popupNode } from '../lib/arcgis.js';
 import { projectSpread } from '../lib/fireSpread.js';
+import { BFP_MARKER_SVG } from '../lib/bfpMarker.js';
 import { LEVELS, renderSmokeFrames, SMOKE_BOUNDS } from '../lib/haze.js';
 import { temperatureFeel } from '../lib/localWeather.js';
 import {
@@ -26,7 +27,6 @@ maplibregl.setWorkerUrl(mapLibreWorkerUrl);
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const HAZE_BOUNDS = [[96, -9.5], [144, 21.5]];
 const MOBILE_HAZE_BOUNDS = [[108, -8.5], [132, 20.5]];
-const PHILIPPINES_FIRE_BOUNDS = [[116, 4.5], [127.5, 21.5]];
 const ENSO_SST_TILE_URL = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png';
 const ENSO_MAX_ZOOM = 8;
 const getEnsoMinZoom = (map) => {
@@ -36,14 +36,14 @@ const getEnsoMinZoom = (map) => {
 };
 const EARTHQUAKE_ONLY_LAYERS = [
   'historical-spread', 'historical-direction', 'spread-ghosts', 'spread-live',
-  'wind-direction', 'report-points', 'historical-hotspots', 'fire-hotspots',
+  'wind-direction', 'report-points', 'historical-hotspots', 'fire-risk-zones', 'fire-risk-labels', 'fire-risk-history',
   'haze-fires', 'haze-sources', 'haze-tracks', 'haze-ticks', 'haze-regions',
   'temperature-glow', 'temperatures', 'temperature-labels',
   'user-area', 'user-dot', 'pending-location', 'pending-label',
   'arcgis-polygons', 'arcgis-lines', 'arcgis-points',
 ];
 const SOURCE_IDS = [
-  'report-points', 'fire-hotspots', 'historical-hotspots',
+  'report-points', 'historical-hotspots', 'fire-risk-zones', 'fire-risk-labels', 'fire-risk-history',
   'haze-fires', 'haze-sources', 'haze-tracks', 'haze-ticks', 'haze-regions',
   'temperatures', 'user-area', 'pending-location',
   'earthquake-p-wave', 'earthquake-s-wave', 'earthquake-event',
@@ -144,6 +144,30 @@ function installOperationalLayers(map) {
     paint: { 'raster-opacity': 0.94, 'raster-fade-duration': 0 },
   }, firstSymbolLayer);
 
+  addSourceAndLayer(map, 'fire-risk-zones', 'fill', {
+    'fill-color': ['match', ['get', 'band'], 'elevated', '#D92D20', 'moderate', '#F79009', '#7DAB91'],
+    'fill-opacity': 0.28,
+    'fill-outline-color': ['match', ['get', 'band'], 'elevated', '#B42318', 'moderate', '#B54708', '#287550'],
+  }, { visibility: 'none' });
+  addSourceAndLayer(map, 'fire-risk-labels', 'symbol', {
+    'text-color': '#7A271A',
+    'text-halo-color': '#FFFFFF',
+    'text-halo-width': 2,
+  }, {
+    visibility: 'none',
+    'text-field': ['case', ['>=', ['get', 'score'], 30], ['concat', ['get', 'name'], '\n', ['get', 'band'], ' · ', ['get', 'confidence'], ' confidence'], ''],
+    'text-font': ['Noto Sans Regular'],
+    'text-size': 11,
+    'text-anchor': 'center',
+    'text-allow-overlap': false,
+  });
+  addSourceAndLayer(map, 'fire-risk-history', 'circle', {
+    'circle-radius': 8,
+    'circle-color': ['match', ['get', 'confidence'], 'high', '#B42318', 'moderate', '#D97706', '#52627A'],
+    'circle-stroke-color': '#FFFFFF',
+    'circle-stroke-width': 2.5,
+    'circle-opacity': 0.98,
+  }, { visibility: 'none' });
   addSourceAndLayer(map, 'historical-spread', 'fill', {
     'fill-color': ['coalesce', ['get', 'color'], '#173564'],
     'fill-opacity': 0.22,
@@ -169,11 +193,6 @@ function installOperationalLayers(map) {
   addSourceAndLayer(map, 'historical-hotspots', 'circle', {
     'circle-radius': 7, 'circle-color': '#FF7A00', 'circle-opacity': 0.92,
     'circle-stroke-color': '#fff5ef', 'circle-stroke-width': 2,
-  });
-  addSourceAndLayer(map, 'fire-hotspots', 'circle', {
-    'circle-radius': ['interpolate', ['linear'], ['get', 'frp'], 0, 3.8, 12, 5, 40, 7.5],
-    'circle-color': ['case', ['>', ['get', 'frp'], 40], '#E85D04', '#FF7A00'],
-    'circle-opacity': 0.96, 'circle-stroke-color': '#fff2df', 'circle-stroke-width': 1,
   });
   addSourceAndLayer(map, 'haze-fires', 'circle', {
     'circle-radius': ['interpolate', ['linear'], ['get', 'frp'], 0, 1.8, 12, 2.6, 40, 3.4],
@@ -398,6 +417,148 @@ function popupText(map, lngLat, text) {
   new maplibregl.Popup({ closeButton: true, maxWidth: '280px' }).setLngLat(lngLat).setDOMContent(node).addTo(map);
 }
 
+function fireRiskPopupNode(properties) {
+  const card = document.createElement('section');
+  card.className = 'fire-risk-popup-card';
+
+  const heading = document.createElement('header');
+  heading.className = 'fire-risk-popup-heading';
+  const brand = document.createElement('span');
+  brand.className = 'fire-risk-popup-eyebrow';
+  brand.textContent = 'SENTRALERT · FIRE RISK';
+  const title = document.createElement('strong');
+  title.className = 'fire-risk-popup-title';
+  title.textContent = properties.name || 'Barangay risk estimate';
+  heading.append(brand, title);
+
+  const badges = document.createElement('div');
+  badges.className = 'fire-risk-popup-badges';
+  const risk = document.createElement('span');
+  risk.className = `fire-risk-popup-badge is-risk-${properties.band || 'lower'}`;
+  risk.textContent = `${properties.band || 'lower'} potential`;
+  const confidence = document.createElement('span');
+  confidence.className = `fire-risk-popup-badge is-confidence-${properties.confidence || 'low'}`;
+  confidence.textContent = `${properties.confidence || 'low'} evidence confidence`;
+  badges.append(risk, confidence);
+
+  const metrics = document.createElement('div');
+  metrics.className = 'fire-risk-popup-metrics';
+  const score = document.createElement('div');
+  score.className = 'fire-risk-popup-metric';
+  const scoreValue = document.createElement('strong');
+  scoreValue.textContent = `${properties.score ?? 0}/100`;
+  const scoreLabel = document.createElement('span');
+  scoreLabel.textContent = 'risk index';
+  score.append(scoreValue, scoreLabel);
+  const records = document.createElement('div');
+  records.className = 'fire-risk-popup-metric';
+  const recordsValue = document.createElement('strong');
+  recordsValue.textContent = String(properties.nearbyCount ?? 0);
+  const recordsLabel = document.createElement('span');
+  recordsLabel.textContent = 'nearby records';
+  records.append(recordsValue, recordsLabel);
+  metrics.append(score, records);
+
+  const context = document.createElement('div');
+  context.className = 'fire-risk-popup-context';
+  const createContextIcon = (text) => {
+    const icon = document.createElement('span');
+    icon.className = 'fire-risk-popup-context-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = text;
+    return icon;
+  };
+  const wind = document.createElement('p');
+  const windText = document.createElement('span');
+  const bearing = properties.windTo != null && Number.isFinite(Number(properties.windTo))
+    ? ` toward ${compassLabel(Number(properties.windTo))}`
+    : '';
+  windText.textContent = `Wind ${properties.windKmh ?? 0} km/h${bearing}`;
+  wind.append(createContextIcon('↗'), windText);
+  const oni = document.createElement('p');
+  const oniText = document.createElement('span');
+  oniText.textContent = properties.oni == null
+    ? `${properties.oniPhase || 'ENSO unavailable'} · ONI unavailable`
+    : `${properties.oniPhase || 'ENSO'} · ONI ${Number(properties.oni) >= 0 ? '+' : ''}${Number(properties.oni).toFixed(1)} °C`;
+  oni.append(createContextIcon('◉'), oniText);
+  context.append(wind, oni);
+
+  const note = document.createElement('footer');
+  note.className = 'fire-risk-popup-note';
+  note.textContent = 'The index combines recorded fire locations with current conditions. Confidence reflects nearby records; it is not a probability.';
+
+  card.append(heading, badges, metrics, context, note);
+  return card;
+}
+
+function showFireRiskPopup(map, lngLat, properties) {
+  new maplibregl.Popup({ closeButton: true, maxWidth: 'none', className: 'fire-risk-popup', offset: 14 })
+    .setLngLat(lngLat)
+    .setDOMContent(fireRiskPopupNode(properties))
+    .addTo(map);
+}
+
+function fireHistoryPopupNode(properties) {
+  const card = document.createElement('section');
+  card.className = 'fire-risk-popup-card fire-history-popup-card';
+
+  const heading = document.createElement('header');
+  heading.className = 'fire-risk-popup-heading';
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'fire-risk-popup-eyebrow';
+  eyebrow.textContent = 'SENTRALERT · RECORDED FIRE';
+  const title = document.createElement('strong');
+  title.className = 'fire-risk-popup-title';
+  title.textContent = properties.name || 'Historical fire location';
+  heading.append(eyebrow, title);
+
+  const badges = document.createElement('div');
+  badges.className = 'fire-risk-popup-badges';
+  const type = document.createElement('span');
+  type.className = 'fire-risk-popup-badge is-record-type';
+  type.textContent = properties.type || 'Recorded fire';
+  const confidence = document.createElement('span');
+  confidence.className = `fire-risk-popup-badge is-confidence-${properties.confidence || 'low'}`;
+  confidence.textContent = `${properties.confidence || 'low'} evidence confidence`;
+  badges.append(type, confidence);
+
+  const context = document.createElement('div');
+  context.className = 'fire-risk-popup-context';
+  if (properties.locationNote) {
+    const locationRow = document.createElement('p');
+    locationRow.className = 'fire-risk-popup-location';
+    locationRow.textContent = properties.locationNote;
+    context.append(locationRow);
+  }
+  const dateRow = document.createElement('p');
+  const dateIcon = document.createElement('span');
+  dateIcon.className = 'fire-risk-popup-context-icon';
+  dateIcon.setAttribute('aria-hidden', 'true');
+  dateIcon.textContent = '◷';
+  const dateText = document.createElement('span');
+  const date = properties.date
+    ? new Date(properties.date).toLocaleDateString('en-PH', {
+      timeZone: 'Asia/Manila', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+    })
+    : 'Date unavailable';
+  dateText.textContent = `Recorded ${date}`;
+  dateRow.append(dateIcon, dateText);
+  context.append(dateRow);
+
+  const note = document.createElement('footer');
+  note.className = 'fire-risk-popup-note';
+  note.textContent = 'Evidence confidence reflects documented incident sources. Pin location may be approximate; this is not a prediction of a future fire.';
+  card.append(heading, badges, context, note);
+  return card;
+}
+
+function showFireHistoryPopup(map, lngLat, properties) {
+  new maplibregl.Popup({ closeButton: true, maxWidth: 'none', className: 'fire-risk-popup', offset: 14 })
+    .setLngLat(lngLat)
+    .setDOMContent(fireHistoryPopupNode(properties))
+    .addTo(map);
+}
+
 function stationContactLines(station) {
   if (station.contact) {
     return [station.contact, station.contactNote].filter(Boolean);
@@ -441,31 +602,6 @@ function earthquakePopupNode(properties, onSelectEarthquake) {
   return card;
 }
 
-function satellitePopup(map, lngLat, hotspot) {
-  const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '290px' });
-  const box = document.createElement('div');
-  box.className = 'satellite-popup';
-  const heading = document.createElement('strong');
-  heading.textContent = 'Possible satellite fire · not confirmed';
-  const details = document.createElement('p');
-  details.textContent = `FRP ${Number(hotspot.frp || 0).toFixed(1)} MW · confidence ${hotspot.confidence ?? 'not reported'} · ${hotspot.sensor ?? 'VIIRS'} · ${Number(hotspot.hoursOld ?? 0).toFixed(1)} h ago`;
-  const copy = document.createElement('button');
-  copy.type = 'button';
-  copy.className = 'secondary';
-  copy.textContent = 'Copy coordinates';
-  copy.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(`${hotspot.lat.toFixed(6)}, ${hotspot.lon.toFixed(6)}`);
-      copy.textContent = 'Location copied';
-    } catch (error) {
-      copy.textContent = 'Copy unavailable';
-      copy.title = error instanceof Error ? error.message : 'Clipboard permission was denied.';
-    }
-  });
-  box.append(heading, details, copy);
-  popup.setLngLat(lngLat).setDOMContent(box).addTo(map);
-}
-
 function splitArcGIS(data) {
   const groups = { polygons: [], lines: [], points: [] };
   for (const item of data?.features ?? []) {
@@ -502,8 +638,10 @@ function MapLibreView({
   localWeather = null,
   cityTemps = [],
   historicalOverlay = null,
-  nationalFireMode = false,
-  nationalFireHotspots = [],
+  fireRiskMode = false,
+  fireRiskFeatures = [],
+  fireRiskLabels = [],
+  fireRiskHistory = [],
   arcgisLayer = null,
   earthquake = null,
   selectedEarthquake = null,
@@ -518,6 +656,7 @@ function MapLibreView({
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+  const wasEnsoModeRef = useRef(false);
   const [map, setMap] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [mapError, setMapError] = useState('');
@@ -624,11 +763,26 @@ function MapLibreView({
   useEffect(() => {
     if (!map || !loaded) return undefined;
     const handleMapClick = (event) => {
-      if (placing) onPickLocation([event.lngLat.lat, event.lngLat.lng]);
+      if (placing) {
+        onPickLocation([event.lngLat.lat, event.lngLat.lng]);
+        return;
+      }
+      const clicked = map.queryRenderedFeatures(event.point, {
+        layers: ['fire-risk-history', 'fire-risk-labels', 'fire-risk-zones'],
+      });
+      const historicalFire = clicked.find((item) => item.layer.id === 'fire-risk-history');
+      if (historicalFire) {
+        fireHistoryClick({ features: [historicalFire], lngLat: event.lngLat });
+        return;
+      }
+      const riskArea = clicked.find((item) => (
+        item.layer.id === 'fire-risk-labels' || item.layer.id === 'fire-risk-zones'
+      ));
+      if (riskArea) fireRiskClick({ features: [riskArea], lngLat: event.lngLat });
     };
     const updateCursor = (event) => {
       const clickable = map.queryRenderedFeatures(event.point, {
-        layers: ['fire-hotspots', 'haze-sources', 'haze-regions', 'arcgis-polygons', 'arcgis-lines', 'arcgis-points', 'earthquake-event'],
+        layers: ['fire-risk-zones', 'fire-risk-labels', 'fire-risk-history', 'haze-sources', 'haze-regions', 'arcgis-polygons', 'arcgis-lines', 'arcgis-points', 'earthquake-event'],
       });
       map.getCanvas().style.cursor = placing ? 'crosshair' : clickable.length ? 'pointer' : '';
     };
@@ -657,10 +811,15 @@ function MapLibreView({
       }
       temperaturePopup.remove();
     };
-    const hotspotClick = (event) => {
-      const item = event.features?.[0];
-      const hotspot = nationalFireHotspots[Number(item?.properties?.index)];
-      if (hotspot) satellitePopup(map, event.lngLat, hotspot);
+    const fireRiskClick = (event) => {
+      const properties = event.features?.[0]?.properties;
+      if (!properties) return;
+      showFireRiskPopup(map, event.lngLat, properties);
+    };
+    const fireHistoryClick = (event) => {
+      const properties = event.features?.[0]?.properties;
+      if (!properties) return;
+      showFireHistoryPopup(map, event.lngLat, properties);
     };
     const sourceClick = (event) => {
       const properties = event.features?.[0]?.properties;
@@ -701,7 +860,6 @@ function MapLibreView({
     map.on('mouseenter', 'temperatures', temperatureEnter);
     map.on('mousemove', 'temperatures', temperatureMove);
     map.on('mouseleave', 'temperatures', temperatureLeave);
-    map.on('click', 'fire-hotspots', hotspotClick);
     map.on('click', 'haze-sources', sourceClick);
     map.on('click', 'haze-regions', regionClick);
     map.on('click', 'report-points', reportClick);
@@ -718,7 +876,6 @@ function MapLibreView({
       map.off('mousemove', 'temperatures', temperatureMove);
       map.off('mouseleave', 'temperatures', temperatureLeave);
       temperaturePopup.remove();
-      map.off('click', 'fire-hotspots', hotspotClick);
       map.off('click', 'haze-sources', sourceClick);
       map.off('click', 'haze-regions', regionClick);
       map.off('click', 'report-points', reportClick);
@@ -728,13 +885,7 @@ function MapLibreView({
       }
       map.off('click', 'earthquake-event', earthquakeClick);
     };
-  }, [map, loaded, placing, onPickLocation, nationalFireHotspots, onSelectEarthquake, earthquakeMode, ensoMode]);
-
-  useEffect(() => {
-    if (!map || !loaded) return;
-    const visible = nationalFireMode ? 'visible' : 'none';
-    map.setLayoutProperty('fire-hotspots', 'visibility', visible);
-  }, [map, loaded, nationalFireMode, hazeMode]);
+  }, [map, loaded, placing, onPickLocation, onSelectEarthquake, earthquakeMode, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return;
@@ -783,11 +934,18 @@ function MapLibreView({
 
   useEffect(() => {
     if (!map || !loaded) return;
-    const fires = nationalFireHotspots.map((hotspot, index) => feature({
-      type: 'Point', coordinates: [hotspot.lon, hotspot.lat],
-    }, { index, frp: Number(hotspot.frp) || 0 }));
-    setData(map, 'fire-hotspots', collection(fires));
-  }, [map, loaded, nationalFireHotspots]);
+    setData(map, 'fire-risk-zones', collection(fireRiskFeatures));
+    setData(map, 'fire-risk-labels', collection(fireRiskLabels));
+    setData(map, 'fire-risk-history', collection(fireRiskHistory));
+  }, [map, loaded, fireRiskFeatures, fireRiskLabels, fireRiskHistory]);
+
+  useEffect(() => {
+    if (!map || !loaded) return;
+    const visible = fireRiskMode && !hazeMode && !earthquakeMode && !ensoMode ? 'visible' : 'none';
+    for (const layerId of ['fire-risk-zones', 'fire-risk-labels', 'fire-risk-history']) {
+      if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visible);
+    }
+  }, [map, loaded, fireRiskMode, hazeMode, earthquakeMode, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return;
@@ -845,7 +1003,7 @@ function MapLibreView({
     for (const layerId of EARTHQUAKE_ONLY_LAYERS) {
       const visibility = earthquakeMode || ensoMode
         ? 'none'
-        : layerId === 'fire-hotspots' && !nationalFireMode
+        : ['fire-risk-zones', 'fire-risk-labels', 'fire-risk-history'].includes(layerId) && !fireRiskMode
           ? 'none'
           : 'visible';
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility);
@@ -856,18 +1014,18 @@ function MapLibreView({
     if (map.getLayer('enso-sst-anomaly')) {
       map.setLayoutProperty('enso-sst-anomaly', 'visibility', ensoMode ? 'visible' : 'none');
     }
-  }, [map, loaded, earthquakeMode, hazeMode, nationalFireMode, ensoMode]);
+  }, [map, loaded, earthquakeMode, hazeMode, fireRiskMode, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return;
-    const temperatureFeatures = !nationalFireMode ? cityTemps.map((city, index) => ({
+    const temperatureFeatures = cityTemps.map((city, index) => ({
       ...feature({ type: 'Point', coordinates: asLngLat(city.location) }, {
         color: cityColor(city.tempC),
         label: typeof city.tempC === 'number' ? `${Math.round(city.tempC)}` : '—',
         name: city.name,
       }),
       id: index,
-    })) : [];
+    }));
     setData(map, 'temperatures', collection(temperatureFeatures));
     setData(map, 'user-area', collection(userLocation && userLocationAccuracy != null ? [
       feature({ type: 'Polygon', coordinates: [circlePolygon(userLocation, USER_LOCATION_PERIMETER_M)] }),
@@ -897,7 +1055,7 @@ function MapLibreView({
       }),
       id: event.id,
     })) : []));
-  }, [map, loaded, cityTemps, nationalFireMode, userLocation, userLocationAccuracy, pendingLocation, arcgisLayer, earthquake, earthquakeEvents, earthquakeMode]);
+  }, [map, loaded, cityTemps, userLocation, userLocationAccuracy, pendingLocation, arcgisLayer, earthquake, earthquakeEvents, earthquakeMode]);
 
   useEffect(() => {
     if (!map || !loaded || !earthquakeMode || !earthquake) return undefined;
@@ -960,7 +1118,7 @@ function MapLibreView({
         const element = markerElement(`bfp-badge is-${station.kind}`, `${station.name} · ${station.city}`);
         element.setAttribute('role', 'button');
         element.tabIndex = 0;
-        element.innerHTML = '<svg viewBox="0 0 32 32" aria-hidden="true"><path class="badge-cross" d="M16 2l3.4 6.1L26 5.3l-2.7 6.6 6.1 3.4-6.1 3.4L26 25.3l-6.6-2.8L16 30l-3.4-7.5L6 25.3l2.7-6.6L2.6 15.3l6.1-3.4L6 5.3l6.6 2.8z"/><circle class="badge-core" cx="16" cy="16" r="6.4"/></svg><span class="bfp-text">BFP</span>';
+        element.innerHTML = BFP_MARKER_SVG;
         const phonePopup = new maplibregl.Popup({
           closeButton: false,
           closeOnClick: false,
@@ -1026,12 +1184,13 @@ function MapLibreView({
       markers.forEach((marker) => marker.remove());
       stationPopups.forEach((popup) => popup.remove());
     };
-  }, [map, loaded, incidents, incidentStateMap, selectedId, onSelect, showStations, cityTemps, nationalFireMode, active, selected, live, userLocation, earthquakeMode, ensoMode]);
+  }, [map, loaded, incidents, incidentStateMap, selectedId, onSelect, showStations, cityTemps, active, selected, live, userLocation, earthquakeMode, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return;
     const isMobile = window.matchMedia('(max-width: 900px)').matches;
     if (ensoMode) {
+      wasEnsoModeRef.current = true;
       map.flyTo({
         center: [-150, 0],
         zoom: Math.max(1.65, getEnsoMinZoom(map)),
@@ -1049,20 +1208,20 @@ function MapLibreView({
         duration: 900,
       });
     } else if (hazeMode) {
+      wasEnsoModeRef.current = false;
       map.fitBounds(isMobile ? MOBILE_HAZE_BOUNDS : HAZE_BOUNDS, {
         padding: isMobile
           ? { top: 28, right: 28, bottom: Math.round(window.innerHeight * 0.5), left: 28 }
           : 28,
         duration: 900,
       });
-    } else if (nationalFireMode) {
-      map.fitBounds(PHILIPPINES_FIRE_BOUNDS, {
-        padding: isMobile
-          ? { top: 24, right: 24, bottom: Math.round(window.innerHeight * 0.28), left: 24 }
-          : 24,
-        duration: 900,
-      });
     } else {
+      if (wasEnsoModeRef.current) {
+        // ENSO uses a Pacific-wide camera. Stop any remaining globe animation
+        // before returning to the app's normal Surigao, Philippines view.
+        map.stop();
+        wasEnsoModeRef.current = false;
+      }
       map.flyTo({
         center: selected && !placing ? asLngLat(selected.location) : [SURIGAO_CENTER[1], SURIGAO_CENTER[0]],
         zoom: selected && !placing ? Math.max(map.getZoom(), isMobile ? 13 : 16) : isMobile ? 13 : 14,
@@ -1070,10 +1229,10 @@ function MapLibreView({
         duration: 850,
       });
     }
-  }, [map, loaded, hazeMode, nationalFireMode, earthquakeMode, ensoMode, earthquake?.id, is3d]);
+  }, [map, loaded, hazeMode, earthquakeMode, ensoMode, earthquake?.id, is3d]);
 
   useEffect(() => {
-    if (!map || !loaded || !selected || hazeMode || nationalFireMode || earthquakeMode || ensoMode || placing) return;
+    if (!map || !loaded || !selected || hazeMode || earthquakeMode || ensoMode || placing) return;
     map.flyTo({
       center: asLngLat(selected.location),
       zoom: Math.max(map.getZoom(), window.matchMedia('(max-width: 900px)').matches ? 13 : 16),
@@ -1082,7 +1241,7 @@ function MapLibreView({
         : [0, 0],
       duration: 800,
     });
-  }, [map, loaded, selectedId, hazeMode, nationalFireMode, earthquakeMode, ensoMode, placing, railOpen]);
+  }, [map, loaded, selectedId, hazeMode, earthquakeMode, ensoMode, placing, railOpen]);
 
   useEffect(() => {
     if (map && loaded && hazeFocus && !ensoMode) {
@@ -1099,7 +1258,7 @@ function MapLibreView({
   }, [map, loaded, is3d, ensoMode]);
 
   return (
-    <div className={`map maplibre-map ${placing ? 'is-placing' : ''} ${nationalFireMode ? 'is-national-fire-mode' : ''}`}>
+    <div className={`map maplibre-map ${placing ? 'is-placing' : ''}`}>
       <div ref={containerRef} className="maplibre-canvas" />
       {earthquakeMode && <section className="earthquake-display" aria-label="Latest earthquake display">
         {earthquake ? (

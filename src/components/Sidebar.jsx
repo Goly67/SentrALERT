@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BrandHeader } from './Brand.jsx';
 import { compassLabel } from '../lib/geo.js';
 import { temperatureFeel } from '../lib/localWeather.js';
-import { bfpStations, regions, STATION_DATA_NOTE } from '../data/bfpStations.js';
+import { bfpStations, regions } from '../data/bfpStations.js';
 import { ALARM_LEVELS } from '../lib/alarmLevels.js';
 
 const STATUS_COPY = {
@@ -233,7 +233,6 @@ export default function Sidebar({
           >
             <span className="icon-warning-levels" aria-hidden="true">⌁</span>
             <span>Earthquakes</span>
-            <span className="earthquake-mode-state">{earthquakeMode ? 'On' : 'Off'}</span>
           </button>
 
           <button className="secondary block levels-btn" onClick={onOpenLevels}>
@@ -243,7 +242,7 @@ export default function Sidebar({
 
           {onOpenHistory && (
             <button className="secondary block levels-btn" onClick={onOpenHistory}>
-              <span className="icon-warning-levels" aria-hidden="true">↻</span>
+              <span className="levels-ico levels-ico--history" aria-hidden="true" />
               Historical fires &amp; satellite check
             </button>
           )}
@@ -258,18 +257,17 @@ export default function Sidebar({
                 </span>
                 BFP coverage
               </h3>
-              <label className="toggle">
-                <input type="checkbox" checked={showStations} onChange={onToggleStations} />
+              <label className="toggle coverage-toggle" title="Show BFP stations on the map">
+                <input type="checkbox" aria-label="Show BFP stations on map" checked={showStations} onChange={onToggleStations} />
                 <span className="toggle-track"><span className="toggle-knob" /></span>
-                <span className="small">Show on map</span>
               </label>
             </div>
             <p className="muted small">
-              {bfpStations.length} stations and offices across {regions.length} Mindanao
-              regions: Caraga, Northern Mindanao, Davao, SOCCSKSARGEN, Zamboanga
-              Peninsula and BARMM.
+              {bfpStations.length} stations and offices across {regions.length} Mindanao regions.
             </p>
-            <p className="muted small coverage-detail">{STATION_DATA_NOTE}</p>
+            <p className="muted small coverage-detail">
+              Some pins mark a town or barangay center, and some contacts are unverified. Confirm details before operational use.
+            </p>
           </section>
         </div>
       </details>
