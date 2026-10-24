@@ -86,6 +86,10 @@ export default function App() {
   const [historicalOverlay, setHistoricalOverlay] = useState(null);
   const [arcgisLayer, setArcgisLayer] = useState(null);
   const [mapIs3d, setMapIs3d] = useState(true);
+  // The fire risk legend starts collapsed on phones so it never covers the map.
+  const [fireRiskLegendOpen, setFireRiskLegendOpen] = useState(
+    () => typeof window === 'undefined' || !window.matchMedia('(max-width: 900px)').matches
+  );
 
   const appRef = useRef(null);
   const mapRef = useRef(null);
@@ -634,20 +638,38 @@ export default function App() {
           />
         )}
         {showFireRisk && (
-          <aside className="fire-risk-legend" aria-label="Fire risk map legend">
-            <strong>Fire Risk Predictor</strong>
-            <p>History + current wind + NOAA ENSO context</p>
-            <div><i className="is-elevated" /> Elevated</div>
-            <div><i className="is-moderate" /> Moderate</div>
-            <div><i className="is-lower" /> Lower / limited records</div>
-            <div className="fire-risk-context">
-              Wind {fireRiskData.context.windKmh} km/h toward {fireRiskData.context.windDirection} · humidity {fireRiskData.context.humidity}% · {fireRiskData.context.windSource === 'open-meteo' ? 'live' : 'fallback'}
-            </div>
-            <div className="fire-risk-context">ENSO: {fireRiskData.context.oniPhase}{fireRiskData.context.oni == null ? '' : ` · ONI ${fireRiskData.context.oni.toFixed(1)}`}</div>
-            <div className={`fire-risk-confidence is-${fireRiskData.context.confidence}`}>
-              Evidence confidence: {fireRiskData.context.confidence.toUpperCase()} · {fireRiskData.context.caseCount} recorded fire{fireRiskData.context.caseCount === 1 ? '' : 's'}
-            </div>
-            <small>Fire markers may be approximate when reports do not provide an exact address.</small>
+          <aside
+            className={`fire-risk-legend ${fireRiskLegendOpen ? 'is-open' : 'is-collapsed'}`}
+            aria-label="Fire risk map legend"
+          >
+            <button
+              type="button"
+              className="fire-risk-legend-toggle"
+              onClick={() => setFireRiskLegendOpen((open) => !open)}
+              aria-expanded={fireRiskLegendOpen}
+            >
+              <strong>Fire Risk Predictor</strong>
+              <span className="fire-risk-legend-dots" aria-hidden="true">
+                <i className="is-elevated" /><i className="is-moderate" /><i className="is-lower" />
+              </span>
+              <span className="fire-risk-legend-chevron" aria-hidden="true" />
+            </button>
+            {fireRiskLegendOpen && (
+              <div className="fire-risk-legend-body">
+                <p>History + current wind + NOAA ENSO context</p>
+                <div><i className="is-elevated" /> Elevated</div>
+                <div><i className="is-moderate" /> Moderate</div>
+                <div><i className="is-lower" /> Lower / limited records</div>
+                <div className="fire-risk-context">
+                  Wind {fireRiskData.context.windKmh} km/h toward {fireRiskData.context.windDirection} · humidity {fireRiskData.context.humidity}% · {fireRiskData.context.windSource === 'open-meteo' ? 'live' : 'fallback'}
+                </div>
+                <div className="fire-risk-context">ENSO: {fireRiskData.context.oniPhase}{fireRiskData.context.oni == null ? '' : ` · ONI ${fireRiskData.context.oni.toFixed(1)}`}</div>
+                <div className={`fire-risk-confidence is-${fireRiskData.context.confidence}`}>
+                  Evidence confidence: {fireRiskData.context.confidence.toUpperCase()} · {fireRiskData.context.caseCount} recorded fire{fireRiskData.context.caseCount === 1 ? '' : 's'}
+                </div>
+                <small>Fire markers may be approximate when reports do not provide an exact address.</small>
+              </div>
+            )}
           </aside>
         )}
 

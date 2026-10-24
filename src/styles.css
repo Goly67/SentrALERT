@@ -2276,3 +2276,65 @@ img.tile-base {
 @media (prefers-reduced-motion: reduce) {
   .quake-exit-chip, .quake-exit-icon::after { animation: none !important; }
 }
+
+/* ---------------------------------------------------------------- */
+/* Fire risk legend: collapsible, compact on phones                  */
+/* ---------------------------------------------------------------- */
+
+.fire-risk-legend {
+  position: absolute; top: 64px; left: 16px; z-index: 520;
+  width: min(300px, calc(100% - 32px));
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px;
+  background: rgba(255, 255, 255, 0.97); color: var(--ink);
+  box-shadow: var(--shadow-lift);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.fire-risk-legend .fire-risk-legend-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 0; padding: 0;
+  border: none; border-radius: 8px; background: none; color: inherit; text-align: left;
+}
+.fire-risk-legend-toggle strong { flex: 1; font-size: 0.9rem; letter-spacing: -0.01em; }
+.fire-risk-legend .fire-risk-legend-dots { display: inline-flex; gap: 4px; flex: none; }
+.fire-risk-legend .fire-risk-legend-dots i {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0;
+}
+.fire-risk-legend .fire-risk-legend-dots i.is-elevated { background: #D92D20; }
+.fire-risk-legend .fire-risk-legend-dots i.is-moderate { background: #F59E0B; }
+.fire-risk-legend .fire-risk-legend-dots i.is-lower { background: #2E8B57; }
+.fire-risk-legend-chevron {
+  flex: none; width: 7px; height: 7px;
+  border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft);
+  transform: rotate(45deg); transition: transform 200ms ease;
+}
+.fire-risk-legend.is-open .fire-risk-legend-chevron { transform: rotate(-135deg); }
+
+/* Body: column layout. Selectors are prefixed with .fire-risk-legend so older
+   generic rules like ".fire-risk-legend div" cannot turn it into a row. */
+.fire-risk-legend .fire-risk-legend-body {
+  display: flex; flex-direction: column; align-items: stretch; gap: 7px;
+  margin: 10px 0 0; padding: 10px 0 0;
+  border-top: 1px solid var(--line); font-size: 0.78rem; line-height: 1.4;
+  max-height: min(46vh, 340px); overflow-y: auto; overscroll-behavior: contain;
+}
+.fire-risk-legend .fire-risk-legend-body > * { width: 100%; margin: 0; }
+.fire-risk-legend .fire-risk-legend-body > p { color: var(--ink-soft); }
+.fire-risk-legend .fire-risk-legend-body > div { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.fire-risk-legend .fire-risk-legend-body > div > i { flex: none; width: 12px; height: 12px; margin: 0; border-radius: 4px; }
+.fire-risk-legend .fire-risk-legend-body i.is-elevated { background: #D92D20; }
+.fire-risk-legend .fire-risk-legend-body i.is-moderate { background: #F59E0B; }
+.fire-risk-legend .fire-risk-legend-body i.is-lower { background: #2E8B57; }
+.fire-risk-legend .fire-risk-legend-body > .fire-risk-context { display: block; color: var(--ink-soft); font-size: 0.74rem; }
+.fire-risk-legend .fire-risk-legend-body > .fire-risk-confidence {
+  display: block; padding: 6px 9px; border-radius: 8px; font-size: 0.72rem; font-weight: 700;
+  background: #E6F6EC; color: #127a52;
+}
+.fire-risk-legend .fire-risk-legend-body > .fire-risk-confidence.is-medium { background: #FFF4DD; color: #9A6200; }
+.fire-risk-legend .fire-risk-legend-body > .fire-risk-confidence.is-low { background: #EEF2F7; color: var(--ink-soft); }
+.fire-risk-legend .fire-risk-legend-body > small { display: block; color: var(--ink-soft); font-size: 0.7rem; line-height: 1.4; }
+
+@media (max-width: 900px) {
+  .fire-risk-legend { top: 56px; left: 12px; width: auto; max-width: calc(100% - 24px); padding: 8px 12px; border-radius: 12px; }
+  .fire-risk-legend.is-open { width: min(290px, calc(100% - 24px)); padding: 12px; }
+  .fire-risk-legend-toggle strong { font-size: 0.8rem; }
+  .fire-risk-legend-body { max-height: 34vh; }
+}
