@@ -5,6 +5,10 @@ import {
   projectSpread, waterNeededLitres, BFP_TRUCK_TANK_L, countMappedBuildings, burningFromMapped,
 } from '../lib/fireSpread.js';
 import { ALARM_LEVELS, nextReportThreshold } from '../lib/alarmLevels.js';
+import { NATIONAL_EMERGENCY_CONTACT } from '../data/bfpStations.js';
+
+// Further than this a station is no help, so it is not listed as one to call.
+const STATION_REACH_M = 50000;
 
 function driveFileId(url) {
   return url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?.*id=)([\w-]+)/i)?.[1] ?? null;
@@ -97,6 +101,8 @@ export default function IncidentPanel({
     : scrubbed.calm
       ? 'Wind is nearly calm here, so the fire can spread any way.'
       : 'Red is downwind; amber is the slow spread against the wind.';
+  const nearbyStations = incident.stations.filter((s) => s.distanceM <= STATION_REACH_M).slice(0, 4);
+  const showHotline = incident.outsideCity || nearbyStations.length === 0;
   const waterLitres = waterNeededLitres(structures);
   const truckloads = Math.ceil(waterLitres / BFP_TRUCK_TANK_L);
 
@@ -215,9 +221,20 @@ export default function IncidentPanel({
           )}
 
           <section>
-            <h3>CALL THESE FIRE STATIONS</h3>
+            <h3>{nearbyStations.length > 0 ? 'CALL THESE FIRE STATIONS' : 'CALL FOR HELP'}</h3>
             <ul className="stations">
-              {incident.stations.slice(0, 4).map((s, i) => (
+              {showHotline && (
+                <li style={{ '--step': 0 }}>
+                  <span>
+                    <strong>National emergency hotline</strong>
+                    <br />
+                    <span className="muted small">Ask for the nearest fire station</span>
+                    <br />
+                    <a className="tel" href={`tel:${NATIONAL_EMERGENCY_CONTACT}`}>{NATIONAL_EMERGENCY_CONTACT}</a>
+                  </span>
+                </li>
+              )}
+              {nearbyStations.map((s, i) => (
                 <li key={s.id} style={{ '--step': i }}>
                   <span>
                     <strong>{s.name}</strong>
@@ -234,7 +251,9 @@ export default function IncidentPanel({
                 </li>
               ))}
             </ul>
-            <p className="muted small">{incident.alarm.respondingUnits} under this level.</p>
+            {nearbyStations.length > 0 && (
+              <p className="muted small">{incident.alarm.respondingUnits} under this level.</p>
+            )}
           </section>
         </>
       )}

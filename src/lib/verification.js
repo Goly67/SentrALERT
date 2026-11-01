@@ -74,7 +74,9 @@ export function composePost(incident, alarm) {
       : `Wind is pushing the fire ${incident.headDirection}. Households in that direction should move now, not wait.`,
     `Location: ${maps}`,
     evidence ? `Photo/video from a reporter: ${evidence}` : null,
-    `Reported through SentraLERT. Call the Bureau of Fire Protection for response.`,
+    incident.outsideCity
+      ? 'Reported through SentraLERT. Call 911 for fire response.'
+      : 'Reported through SentraLERT. Call the Bureau of Fire Protection for response.',
   ]
     .filter(Boolean)
     .join('\n\n');

@@ -20,13 +20,17 @@ test('a fire far outside the city is not given a Surigao barangay name', () => {
 
   const [incident] = buildIncidents(crowdReports(quezonCity), wind);
   assert.equal(incident.barangayName, 'Outside Surigao City');
-  assert.equal(composePost(incident, incident.alarm).split('\n')[0], 'FIRE REPORTED — Outside Surigao City');
+  const post = composePost(incident, incident.alarm);
+  assert.equal(post.split('\n')[0], 'FIRE REPORTED — Outside Surigao City');
+  assert.match(post, /Call 911/);
 });
 
 test('a fire inside the city keeps its barangay and the city in the post', () => {
   const [incident] = buildIncidents(crowdReports([9.7795, 125.4735]), wind);
   assert.equal(incident.barangayName, 'San Juan');
-  assert.equal(composePost(incident, incident.alarm).split('\n')[0], 'FIRE REPORTED — San Juan, Surigao City');
+  const post = composePost(incident, incident.alarm);
+  assert.equal(post.split('\n')[0], 'FIRE REPORTED — San Juan, Surigao City');
+  assert.match(post, /Bureau of Fire Protection/);
 });
 
 test('a fire uses the wind at its own location, not the city wind', () => {
