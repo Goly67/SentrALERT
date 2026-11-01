@@ -3,10 +3,14 @@ import surigaoBarangayBoundaries from '../data/surigaoBarangays.json' with { typ
 import { bfpStations } from '../data/bfpStations.js';
 import { distanceMeters, compassLabel } from './geo.js';
 import { projectHorizons, FUEL_PROFILES } from './fireSpread.js';
+import { windForFire } from './wind.js';
 import { classifyAlarm } from './alarmLevels.js';
 import { triage, CLUSTER_RADIUS_M, CLUSTER_WINDOW_MIN } from './verification.js';
 
 const ACTIVE_FIRE_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Further than this from every Surigao City barangay, the nearest one says
+// nothing about the buildings at the fire.
+const OUTSIDE_LIST_M = 3000;
 
 function hasValidLocation(location) {
   return Array.isArray(location) &&
@@ -50,7 +54,11 @@ function pointInGeometry(location, geometry) {
   ));
 }
 
-/** Barangay containing a point, falling back to the nearest known center. */
+/**
+ * Barangay containing a point, falling back to the nearest known center. A
+ * point far from all of them gets a plain "outside" label rather than the name
+ * of a barangay it is not in.
+ */
 export function resolveBarangay(location) {
   const boundaryMatch = surigaoBarangayBoundaries.features.find(({ geometry }) => (
     pointInGeometry(location, geometry)
@@ -75,7 +83,9 @@ export function resolveBarangay(location) {
       best = b;
     }
   }
-  return best;
+  return bestDist > OUTSIDE_LIST_M
+    ? { id: 'outside_surigao', name: 'Outside Surigao City', center: location, fuel: 'mixed_residential', outsideList: true }
+    : best;
 }
 
 /** Group reports that describe the same fire. */
@@ -110,8 +120,10 @@ function centroid(points) {
  * Turn raw reports into incidents with spread projections and an alarm level.
  * Everything is derived — no stored status, so re-running after new reports
  * arrive automatically re-escalates without anyone touching a queue.
+ * `wind` is the city's; `localWinds` holds readings for fires elsewhere, keyed
+ * by windCell (see wind.js).
  */
-export function buildIncidents(reports, wind, airQualitySignals = [], thermalHotspots = []) {
+export function buildIncidents(reports, wind, airQualitySignals = [], thermalHotspots = [], localWinds = {}) {
   const now = Date.now();
   const airQualityActive = airQualitySignals.some((signal) => {
     const detectedAt = new Date(signal.detectedAt).getTime();
@@ -137,11 +149,12 @@ export function buildIncidents(reports, wind, airQualitySignals = [], thermalHot
         distanceMeters(location, [hotspot.lat, hotspot.lon]) <= 2000
       );
       const result = triage(primary, cluster, airQualityActive, thermalActive);
+      const fireWind = windForFire(location, wind, localWinds);
       const spreadParams = {
         origin: location,
-        windFromDeg: wind.fromDeg,
-        windKmh: wind.speedKmh,
-        humidity: wind.humidity,
+        windFromDeg: fireWind.fromDeg,
+        windKmh: fireWind.speedKmh,
+        humidity: fireWind.humidity,
         fuel,
       };
       const projections = projectHorizons(spreadParams);
@@ -155,7 +168,7 @@ export function buildIncidents(reports, wind, airQualitySignals = [], thermalHot
         held: result.status === 'monitoring' && cluster.length < 5,
       });
 
-      const headDirection = compassLabel(thirtyMin.headBearing);
+      const headDirection = thirtyMin.calm ? 'any direction' : compassLabel(thirtyMin.headBearing);
       const stations = [...bfpStations]
         .map((s) => ({ ...s, distanceM: distanceMeters(location, s.location) }))
         .sort((a, b) => a.distanceM - b.distanceM);
@@ -171,12 +184,15 @@ export function buildIncidents(reports, wind, airQualitySignals = [], thermalHot
         modelConfidence: Math.max(...cluster.map((r) => r.modelConfidence)),
         barangayId: barangay.id,
         barangayName: barangay.name,
+        outsideCity: Boolean(barangay.outsideList),
         fuel,
         fuelLabel: FUEL_PROFILES[fuel].label,
         triage: result,
         spreadParams,
         projections,
         headDirection,
+        directionless: thirtyMin.calm,
+        wind: fireWind,
         projectionSummary: `${headDirection} at ${thirtyMin.rosMetresPerMin.toFixed(1)} m/min`,
         alarm,
         stations,

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { composePost } from '../lib/verification.js';
-import { projectSpread } from '../lib/fireSpread.js';
+import {
+  projectSpread, waterNeededLitres, BFP_TRUCK_TANK_L, countMappedBuildings, burningFromMapped,
+} from '../lib/fireSpread.js';
 import { ALARM_LEVELS, nextReportThreshold } from '../lib/alarmLevels.js';
 
 function driveFileId(url) {
@@ -60,11 +62,26 @@ const relative = (minutes) => {
 
 export default function IncidentPanel({
   incident, horizonMinutes, onBack, onOpenLevels,
-  incidentState = 'active', postApproval, onApprovePost, onRevokePost, onReportFire,
+  incidentState = 'active', postApproval, onApprovePost, onRevokePost, onReportFire, mapRef,
 }) {
   const [showAllEvidence, setShowAllEvidence] = useState(false);
   const thirty = incident.projections.find((p) => p.minutes === 30);
-  const scrubbed = projectSpread({ ...incident.spreadParams, minutes: horizonMinutes });
+  const scrubbed = useMemo(
+    () => projectSpread({ ...incident.spreadParams, minutes: horizonMinutes }),
+    [incident.spreadParams, horizonMinutes]
+  );
+  // Real buildings in the footprint, once the map has loaded them. Polled:
+  // the map's fire animation keeps it busy, so its 'idle' event may never fire.
+  const [mappedBuildings, setMappedBuildings] = useState(null);
+  useEffect(() => {
+    const update = () => setMappedBuildings(countMappedBuildings(mapRef?.current, scrubbed.polygon));
+    update();
+    const id = setInterval(update, 2000);
+    return () => clearInterval(id);
+  }, [mapRef, scrubbed]);
+  const structures = mappedBuildings === null
+    ? scrubbed.estimatedStructures
+    : burningFromMapped(mappedBuildings, incident.fuel);
   const held = incident.alarm.level === 0;
   const underControl = incidentState === 'under_control';
   const post = incident.triage.autoPost ? composePost(incident, incident.alarm) : null;
@@ -74,7 +91,14 @@ export default function IncidentPanel({
   const nextReportsNeeded = nextReportAlarm
     ? nextReportAlarm.minReports - incident.reports.length
     : 0;
-  const waterLitres = Math.max(500, Math.round((scrubbed.areaHa ?? 0) * 1800 / 100) * 100);
+  const windUnknown = incident.wind.source === 'unavailable';
+  const windNote = windUnknown
+    ? 'Wind data is not available for this spot yet, so no direction is shown.'
+    : scrubbed.calm
+      ? 'Wind is nearly calm here, so the fire can spread any way.'
+      : 'Red is downwind; amber is the slow spread against the wind.';
+  const waterLitres = waterNeededLitres(structures);
+  const truckloads = Math.ceil(waterLitres / BFP_TRUCK_TANK_L);
 
   return (
     <div className="panel incident-panel">
@@ -143,12 +167,22 @@ export default function IncidentPanel({
               <dd>{incident.headDirection}</dd>
             </div>
             <div>
+              <dt>Wind at fire</dt>
+              <dd>{windUnknown ? 'Unavailable' : `${scrubbed.calm ? 'Calm · ' : ''}${incident.wind.speedKmh.toFixed(0)} km/h`}</dd>
+            </div>
+            <div>
               <dt>Rate of spread</dt>
               <dd>{thirty.rosMetresPerMin.toFixed(1)} m/min</dd>
             </div>
+            {!scrubbed.calm && (
+              <div>
+                <dt>Against the wind</dt>
+                <dd>{thirty.backRosMetresPerMin.toFixed(1)} m/min</dd>
+              </div>
+            )}
             <div className="is-live">
               <dt>At +{Math.round(horizonMinutes)} min</dt>
-              <dd>~{scrubbed.estimatedStructures} structures</dd>
+              <dd>~{structures} structures</dd>
             </div>
             <div className="is-live">
               <dt>Front distance</dt>
@@ -156,13 +190,19 @@ export default function IncidentPanel({
             </div>
             <div className="is-live">
               <dt>Water needed (est.)</dt>
-              <dd>{waterLitres.toLocaleString()} L</dd>
+              <dd>
+                {waterLitres.toLocaleString()} L
+                <small className="muted"> · ~{truckloads.toLocaleString()} truckloads</small>
+              </dd>
             </div>
           </dl>
 
           <p className="muted small">
-            {incident.fuelLabel}. Drag the timeline under the map to walk the front
-            forward. {incident.reports.length} independent report
+            {incident.fuelLabel}. {mappedBuildings === null
+              ? 'Structures estimated from typical building density.'
+              : `${mappedBuildings} buildings mapped in this zone (OpenStreetMap).`}{' '}
+            Worst-case estimate with no firefighting: real fires can differ. {windNote}{' '}
+            Drag the timeline under the map to walk the front forward. {incident.reports.length} independent report
             {incident.reports.length > 1 ? 's' : ''} so far.
           </p>
 
@@ -170,7 +210,7 @@ export default function IncidentPanel({
             <p className="escalation">
               Raised {incident.alarm.escalatedBy} level
               {incident.alarm.escalatedBy > 1 ? 's' : ''} above the size estimate —
-              independent reports and time on the clock both point to a bigger fire.
+              the number of independent reports points to a bigger fire.
             </p>
           )}
 

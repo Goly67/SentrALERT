@@ -22,7 +22,7 @@ import {
   HazePanel, HazeTimeline, MapLayersMenu, useHaze,
 } from './components/HazeUI.jsx';
 import { buildIncidents } from './lib/incidents.js';
-import { fetchWind, FALLBACK_WIND } from './lib/wind.js';
+import { fetchWind, fetchWindAt, windCell, FALLBACK_WIND } from './lib/wind.js';
 import { fetchLocalWeather, fetchCityTemperatures } from './lib/localWeather.js';
 import { fetchEarthquakeEvents } from './lib/earthquakes.js';
 import { fetchThermalHotspots } from './lib/thermal.js';
@@ -261,10 +261,28 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  const [fireWinds, setFireWinds] = useState({});
   const allIncidents = useMemo(
-    () => buildIncidents(reports, wind, airQualitySignals, thermalHotspots),
-    [reports, wind, airQualitySignals, thermalHotspots, tick]
+    () => buildIncidents(reports, wind, airQualitySignals, thermalHotspots, fireWinds),
+    [reports, wind, airQualitySignals, thermalHotspots, fireWinds, tick]
   );
+  // Each fire needs the wind where it is burning, not at the city centre.
+  const fireCells = [...new Set(allIncidents.map((incident) => windCell(incident.location)))].sort().join('|');
+  useEffect(() => {
+    if (!fireCells) return undefined;
+    let cancelled = false;
+    const refresh = () => fireCells.split('|').forEach((cell) => {
+      fetchWindAt(cell.split(',').map(Number)).then((reading) => {
+        if (!cancelled && reading) setFireWinds((current) => ({ ...current, [cell]: reading }));
+      });
+    });
+    refresh();
+    const id = setInterval(refresh, REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [fireCells]);
   const incidents = useMemo(() => allIncidents.filter((incident) => {
     const status = incidentStatusMap[incident.id] ?? 'active';
     return status !== 'fire_out';
@@ -556,6 +574,7 @@ export default function App() {
   } else if (selected) {
     rail = (
       <IncidentPanel
+        mapRef={mapRef}
         incident={selected}
         incidentState={incidentStatusMap[selected.id] ?? 'active'}
         horizonMinutes={horizonMinutes}

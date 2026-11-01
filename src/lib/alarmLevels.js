@@ -134,9 +134,10 @@ export function nextReportThreshold(currentLevel, reportCount) {
 /**
  * Final level for an incident.
  *
- * The spread model can describe how large a fire may become, but it cannot
- * independently assign a higher alarm. Report count is the operational
- * ceiling: 5, 15, 35, 45, and 50 reports permit alarms 1 through 5.
+ * Report count sets the alarm: 5, 15, 35, 45, and 50 reports reach alarms 1
+ * through 5. The spread model describes how large a fire may become, but it
+ * cannot raise or hold back the alarm: a fire on open ground can estimate near
+ * zero structures and still have 35 people reporting it.
  */
 export function classifyAlarm({
   estimatedStructures,
@@ -155,15 +156,12 @@ export function classifyAlarm({
 
   const base = alarmForStructures(estimatedStructures);
   const reportBase = alarmForReports(corroboration);
-  const reportCeiling = reportBase?.level ?? 1;
-  const modelLevel = Math.max(base.level, 1);
-  const capped = Math.min(modelLevel, reportCeiling, ALARM_LEVELS.length);
-  const step = ALARM_LEVELS[capped - 1];
+  const step = reportBase ?? ALARM_LEVELS[0];
 
   return {
     ...step,
     baseLevel: base.level,
-    escalatedBy: capped - base.level,
+    escalatedBy: Math.max(step.level - base.level, 0),
     respondingUnits: `${step.units} units`,
   };
 }

@@ -39,7 +39,9 @@ export function subscribeToReports(callback) {
     const reportsRef = ref(db, 'reports');
     return onValue(reportsRef, (snapshot) => {
       const value = snapshot.val() ?? {};
-      callback(Object.values(value));
+      // The database is shared with the FireSense hardware build, whose
+      // reports do not belong on this crowd-report site yet.
+      callback(Object.values(value).filter((report) => report?.source !== 'sensor'));
     });
   }
 

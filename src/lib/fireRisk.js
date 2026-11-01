@@ -31,15 +31,120 @@ function destinationKm([lat, lon], bearing, distance) {
   return [lat2 / radians, lon2 / radians];
 }
 
+function ringArea(ring) {
+  let total = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    total += (ring[j][0] - ring[i][0]) * (ring[j][1] + ring[i][1]);
+  }
+  return Math.abs(total / 2);
+}
+
+function pointInRing([x, y], ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceToSegmentSq([px, py], [ax, ay], [bx, by], kx) {
+  const dx = (bx - ax) * kx;
+  const dy = by - ay;
+  const len = dx * dx + dy * dy;
+  let t = len ? (((px - ax) * kx) * dx + (py - ay) * dy) / len : 0;
+  t = Math.max(0, Math.min(1, t));
+  const ex = (px - ax) * kx - t * dx;
+  const ey = py - ay - t * dy;
+  return ex * ex + ey * ey;
+}
+
+/**
+ * Label point well inside the barangay (pole of inaccessibility, grid search).
+ * Averaging the boundary vertices can land outside the polygon or in a river;
+ * this picks the interior point farthest from every edge of the largest part.
+ */
+const labelPointCache = new WeakMap();
 function representativePoint(geometry) {
-  const ring = geometry?.type === 'Polygon'
-    ? geometry.coordinates?.[0]
+  if (geometry && labelPointCache.has(geometry)) return labelPointCache.get(geometry);
+  const point = computeLabelPoint(geometry);
+  if (geometry) labelPointCache.set(geometry, point);
+  return point;
+}
+
+function computeLabelPoint(geometry) {
+  const polygons = geometry?.type === 'Polygon'
+    ? [geometry.coordinates]
     : geometry?.type === 'MultiPolygon'
-      ? geometry.coordinates?.[0]?.[0]
-      : null;
-  if (!ring?.length) return null;
-  const totals = ring.reduce(([lon, lat], point) => [lon + point[0], lat + point[1]], [0, 0]);
-  return [totals[1] / ring.length, totals[0] / ring.length];
+      ? geometry.coordinates
+      : [];
+  const polygon = polygons
+    .filter((rings) => rings?.[0]?.length)
+    .sort((a, b) => ringArea(b[0]) - ringArea(a[0]))[0];
+  if (!polygon) return null;
+  const outer = polygon[0];
+  const holes = polygon.slice(1);
+  const xs = outer.map((p) => p[0]);
+  const ys = outer.map((p) => p[1]);
+  const kx = Math.cos(((Math.min(...ys) + Math.max(...ys)) / 2) * (Math.PI / 180));
+  const inside = (pt) => pointInRing(pt, outer) && !holes.some((hole) => pointInRing(pt, hole));
+  const clearance = (pt) => {
+    let best = Infinity;
+    for (const ring of polygon) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+        best = Math.min(best, distanceToSegmentSq(pt, ring[j], ring[i], kx));
+      }
+    }
+    return best;
+  };
+
+  let [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  let bestPoint = null;
+  let bestScore = -1;
+  for (let pass = 0; pass < 3; pass += 1) {
+    const steps = 18;
+    for (let i = 0; i <= steps; i += 1) {
+      for (let j = 0; j <= steps; j += 1) {
+        const pt = [minX + ((maxX - minX) * i) / steps, minY + ((maxY - minY) * j) / steps];
+        if (!inside(pt)) continue;
+        const score = clearance(pt);
+        if (score > bestScore) { bestScore = score; bestPoint = pt; }
+      }
+    }
+    if (!bestPoint) break;
+    const spanX = (maxX - minX) / 6;
+    const spanY = (maxY - minY) / 6;
+    [minX, maxX, minY, maxY] = [bestPoint[0] - spanX, bestPoint[0] + spanX, bestPoint[1] - spanY, bestPoint[1] + spanY];
+  }
+  if (!bestPoint) {
+    const totals = outer.reduce(([lon, lat], point) => [lon + point[0], lat + point[1]], [0, 0]);
+    return [totals[1] / outer.length, totals[0] / outer.length];
+  }
+  return [bestPoint[1], bestPoint[0]];
+}
+
+/**
+ * Records that share one approximate anchor (e.g. two barangay-level fires)
+ * would sit exactly on top of each other. Fan them out ~35 m around the
+ * anchor so each marker can be seen and clicked; the anchor itself is unchanged.
+ */
+function spreadStackedPoints(items) {
+  const groups = new Map();
+  items.forEach((item, index) => {
+    const key = item.location.map((v) => v.toFixed(5)).join(',');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(index);
+  });
+  const out = items.map((item) => ({ ...item, displayLocation: item.location }));
+  for (const indexes of groups.values()) {
+    if (indexes.length < 2) continue;
+    indexes.forEach((index, k) => {
+      const bearing = (360 / indexes.length) * k + 45;
+      out[index].displayLocation = destinationKm(out[index].location, bearing, 0.035);
+    });
+  }
+  return out;
 }
 
 function riskBand(score) {
@@ -134,9 +239,9 @@ export function buildFireRiskFeatures(historicalFires = [], incidents = [], wind
     },
   }));
 
-  const history = cases.map((item) => ({
+  const history = spreadStackedPoints(cases).map((item) => ({
     type: 'Feature',
-    geometry: { type: 'Point', coordinates: [item.location[1], item.location[0]] },
+    geometry: { type: 'Point', coordinates: [item.displayLocation[1], item.displayLocation[0]] },
     properties: {
       name: item.name,
       date: item.date ?? '',

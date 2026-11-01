@@ -36,6 +36,19 @@ test('report count follows the operational alarm procedure', () => {
   }
 });
 
+test('many reports raise the alarm even when the spread model expects no structures', () => {
+  const expected = [[5, 1], [15, 2], [35, 3], [45, 4], [50, 5]];
+
+  for (const [reports, level] of expected) {
+    const alarm = classifyAlarm({ estimatedStructures: 0, corroboration: reports });
+    assert.equal(alarm.level, level, `${reports} reports on open ground`);
+  }
+});
+
+test('a held report stays a Light Warning', () => {
+  assert.equal(classifyAlarm({ estimatedStructures: 200, corroboration: 3, held: true }).level, 0);
+});
+
 test('progress text starts from the current alarm level instead of always restarting at 1st alarm', () => {
   const next = nextReportThreshold(4, 3);
 

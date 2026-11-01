@@ -35,7 +35,7 @@ const getEnsoMinZoom = (map) => {
   return Math.max(-2, Math.min(Math.log2(width / 512), Math.log2(height / 512)));
 };
 const EARTHQUAKE_ONLY_LAYERS = [
-  'historical-spread', 'historical-direction', 'spread-ghosts', 'spread-live',
+  'historical-spread', 'historical-direction', 'spread-ghosts', 'spread-live', 'spread-rear',
   'wind-direction', 'report-points', 'historical-hotspots', 'fire-risk-zones', 'fire-risk-labels', 'fire-risk-history',
   'haze-fires', 'haze-sources', 'haze-tracks', 'haze-ticks', 'haze-regions',
   'temperature-glow', 'temperatures', 'temperature-labels',
@@ -49,14 +49,89 @@ const SOURCE_IDS = [
   'earthquake-p-wave', 'earthquake-s-wave', 'earthquake-event',
 ];
 
-const flameSvg = `
-<svg viewBox="0 0 24 32" aria-hidden="true">
-  <path class="flame-depth" d="M12 0C12 6 5 8 5 16a7 7 0 0 0 14 0c0-4-2-6-3-9-1 3-4 3-4 0 0-3 0-5 0-7z" transform="translate(1.2 1.2)"/>
-  <path class="flame-outer" d="M12 0C12 6 5 8 5 16a7 7 0 0 0 14 0c0-4-2-6-3-9-1 3-4 3-4 0 0-3 0-5 0-7z"/>
-  <path class="flame-inner" d="M12 12c0 3-3 4-3 7a3.2 3.2 0 0 0 6.4 0c0-3-2.2-4-3.4-7z"/>
-  <path class="flame-highlight" d="M8.5 11.5C7.2 14 6.5 16 7 18.1c.2 1.2.8 2.1 1.7 2.7-.6-2.2-.1-4.1 1.1-6.1z"/>
+// Fire marker art escalates with the alarm level (1st-5th). The flame is
+// layered gradient shapes warped by an animated noise filter; smoke is soft
+// puffs, lit orange by the fire near the base, billowing through a second
+// noise filter. Both filters live once in a hidden <svg> (ensureFireDefs).
+const rnd = (i, k) => {
+  const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+const FIRE_DEFS = `
+<svg id="sa-fire-defs" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+  <defs>
+    <filter id="sa-fire-distort" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.07 0.16" numOctaves="2" seed="4" result="noise">
+        <animate attributeName="baseFrequency" dur="0.9s" values="0.07 0.16;0.085 0.2;0.065 0.14;0.07 0.16" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="7" xChannelSelector="R" yChannelSelector="G" result="warped"/>
+      <feGaussianBlur in="warped" stdDeviation="0.35"/>
+    </filter>
+    <filter id="sa-smoke-distort" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="3" seed="9" result="noise">
+        <animate attributeName="baseFrequency" dur="7s" values="0.028;0.036;0.024;0.028" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="18" xChannelSelector="R" yChannelSelector="B" result="warped"/>
+      <feGaussianBlur in="warped" stdDeviation="1.1"/>
+    </filter>
+    <linearGradient id="sa-fo-warm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF4D00" stop-opacity="0"/><stop offset=".22" stop-color="#FF5A00" stop-opacity=".7"/>
+      <stop offset=".6" stop-color="#FF7A00"/><stop offset="1" stop-color="#D9480F"/>
+    </linearGradient>
+    <linearGradient id="sa-fo-hot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9B1410" stop-opacity="0"/><stop offset=".22" stop-color="#C81E1E" stop-opacity=".75"/>
+      <stop offset=".6" stop-color="#F0441E"/><stop offset="1" stop-color="#A3160E"/>
+    </linearGradient>
+    <linearGradient id="sa-fm-warm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFB000" stop-opacity="0"/><stop offset=".35" stop-color="#FFA51F" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#FF8A00"/>
+    </linearGradient>
+    <linearGradient id="sa-fm-hot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF7A00" stop-opacity="0"/><stop offset=".3" stop-color="#FF8A1F" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#FF6A00"/>
+    </linearGradient>
+    <radialGradient id="sa-fc" cx=".5" cy=".75" r=".6">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset=".35" stop-color="#FFF6C2"/>
+      <stop offset=".8" stop-color="#FFD166" stop-opacity=".9"/><stop offset="1" stop-color="#FFB000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
 </svg>`;
-const fireSmokeMarkup = '<span class="fire-smoke" aria-hidden="true"><span class="fire-smoke-puff" style="--i:0"></span><span class="fire-smoke-puff" style="--i:1"></span><span class="fire-smoke-puff" style="--i:2"></span></span>';
+function ensureFireDefs() {
+  if (typeof document === 'undefined' || document.getElementById('sa-fire-defs')) return;
+  document.body.insertAdjacentHTML('beforeend', FIRE_DEFS);
+}
+const FLAME_OUTER = 'M20 1C22 10 30 14 31 24C33 20 33 16 32 12C37 19 39 28 38 35C37 47 30 55 20 55C10 55 3 47 2 36C1 28 5 21 9 16C9 21 11 25 13 26C12 17 15 9 20 1Z';
+const FLAME_MID = 'M20 13C21 20 27 24 27 32C29 30 29 27 29 24C32 30 33 36 32 41C31 49 26 54 20 54C14 54 9 49 8 42C8 36 11 31 14 28C14 31 15 33 17 34C16 27 18 20 20 13Z';
+const FLAME_CORE = 'M20 27C21 33 26 37 26 43C26 49 23 53 20 53C17 53 14 49 14 44C14 38 18 33 20 27Z';
+const TONGUE_L = 'M10 44C4 37 3 28 6 19C8 27 12 31 14 38Z';
+const TONGUE_R = 'M30 44C36 37 37 28 34 19C32 27 28 31 26 38Z';
+const fireFlameMarkup = (lvl) => {
+  const p = lvl >= 3 ? 'hot' : 'warm';
+  const licks = Array.from({ length: 3 + lvl * 2 }, (_, i) => (
+    `<span class="fire-lick" style="--i:${i};--n:${3 + lvl * 2};--dx:${((rnd(i, 4) - 0.5) * 9).toFixed(1)}px;--k:${(0.6 + rnd(i, 5) * 0.6).toFixed(2)}"></span>`
+  )).join('');
+  return `<span class="fire-flame-body">`
+    + `<svg class="fire-flame-svg" viewBox="0 0 40 56" preserveAspectRatio="xMidYMax meet" aria-hidden="true">`
+    + (lvl >= 3 ? `<path class="fl-tongue is-left" fill="url(#sa-fo-${p})" d="${TONGUE_L}"/><path class="fl-tongue is-right" fill="url(#sa-fo-${p})" d="${TONGUE_R}"/>` : '')
+    + `<path class="fl-outer" fill="url(#sa-fo-${p})" d="${FLAME_OUTER}"/>`
+    + `<path class="fl-mid" fill="url(#sa-fm-${p})" d="${FLAME_MID}"/>`
+    + `<path class="fl-core" fill="url(#sa-fc)" d="${FLAME_CORE}"/>`
+    + `</svg>${licks}</span>`;
+};
+const fireSmokeMarkup = (lvl) => {
+  const n = 4 + lvl * 2;
+  const puffs = Array.from({ length: n }, (_, i) => (
+    `<span class="fire-smoke-puff" style="--i:${i};--n:${n};--s:${(0.75 + rnd(i, 1) * 0.7).toFixed(2)};`
+    + `--dx:${((rnd(i, 2) - 0.35) * (16 + lvl * 7)).toFixed(1)}px;--rot:${Math.round((rnd(i, 3) - 0.5) * 200)}deg"></span>`
+  )).join('');
+  return `<span class="fire-smoke" aria-hidden="true">${puffs}</span>`;
+};
+const fireEmberMarkup = (lvl) => {
+  const embers = Array.from({ length: lvl * 2 }, (_, i) => (
+    `<span class="fire-ember" style="--i:${i};--dx:${((rnd(i, 6) - 0.5) * (22 + lvl * 6)).toFixed(1)}px;--k:${(0.6 + rnd(i, 7) * 0.8).toFixed(2)}"></span>`
+  )).join('');
+  return `<span class="fire-embers" aria-hidden="true">${embers}</span>`;
+};
 
 const emptyCollection = () => ({ type: 'FeatureCollection', features: [] });
 const asLngLat = ([lat, lon]) => [lon, lat];
@@ -119,6 +194,39 @@ function createEarthquakeStarImage() {
   return context.getImageData(0, 0, canvas.width, canvas.height);
 }
 
+// Marker for a documented historical fire: coloured disc, white ring, flame.
+function createFireHistoryIcon(fill) {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not create the historical fire marker.');
+  ctx.shadowColor = 'rgba(40, 10, 6, 0.45)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
+  ctx.beginPath();
+  ctx.arc(32, 31, 24, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 4.5;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.stroke();
+  // Flame (same outline as the live fire marker), white with a warm core.
+  const flame = new Path2D('M20 1C22 10 30 14 31 24C33 20 33 16 32 12C37 19 39 28 38 35C37 47 30 55 20 55C10 55 3 47 2 36C1 28 5 21 9 16C9 21 11 25 13 26C12 17 15 9 20 1Z');
+  const core = new Path2D('M20 27C21 33 26 37 26 43C26 49 23 53 20 53C17 53 14 49 14 44C14 38 18 33 20 27Z');
+  ctx.save();
+  ctx.translate(32 - 20 * 0.52, 31 - 30 * 0.52);
+  ctx.scale(0.52, 0.52);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill(flame);
+  ctx.fillStyle = '#FFD166';
+  ctx.fill(core);
+  ctx.restore();
+  return ctx.getImageData(0, 0, size, size);
+}
+
 function setData(map, id, data) {
   const source = map.getSource(id);
   if (source && typeof source.setData === 'function') source.setData(data);
@@ -149,25 +257,50 @@ function installOperationalLayers(map) {
     'fill-opacity': 0.28,
     'fill-outline-color': ['match', ['get', 'band'], 'elevated', '#B42318', 'moderate', '#B54708', '#287550'],
   }, { visibility: 'none' });
+  for (const [confidence, fill] of [['high', '#B42318'], ['moderate', '#D97706'], ['low', '#52627A']]) {
+    if (!map.hasImage(`fire-history-${confidence}`)) {
+      map.addImage(`fire-history-${confidence}`, createFireHistoryIcon(fill), { pixelRatio: 2 });
+    }
+  }
   addSourceAndLayer(map, 'fire-risk-labels', 'symbol', {
-    'text-color': '#7A271A',
+    'text-color': ['match', ['get', 'band'], 'elevated', '#912018', 'moderate', '#93370D', '#24573C'],
     'text-halo-color': '#FFFFFF',
     'text-halo-width': 2,
   }, {
     visibility: 'none',
-    'text-field': ['case', ['>=', ['get', 'score'], 30], ['concat', ['get', 'name'], '\n', ['get', 'band'], ' · ', ['get', 'confidence'], ' confidence'], ''],
+    'text-field': ['case', ['>=', ['get', 'score'], 30],
+      ['format',
+        ['get', 'name'], { 'font-scale': 1.12 },
+        '\n', {},
+        ['concat', ['upcase', ['get', 'band']], ' · ', ['get', 'confidence'], ' confidence'], { 'font-scale': 0.86 }],
+      ''],
     'text-font': ['Noto Sans Regular'],
-    'text-size': 11,
-    'text-anchor': 'center',
+    'text-size': 11.5,
+    'text-line-height': 1.25,
+    'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
+    'text-radial-offset': 0.9,
+    'text-justify': 'auto',
+    'text-padding': 4,
     'text-allow-overlap': false,
   });
-  addSourceAndLayer(map, 'fire-risk-history', 'circle', {
-    'circle-radius': 8,
-    'circle-color': ['match', ['get', 'confidence'], 'high', '#B42318', 'moderate', '#D97706', '#52627A'],
-    'circle-stroke-color': '#FFFFFF',
-    'circle-stroke-width': 2.5,
-    'circle-opacity': 0.98,
-  }, { visibility: 'none' });
+  // Historical fire markers sit above the barangay labels, so labels are placed around them.
+  addSourceAndLayer(map, 'fire-risk-history', 'symbol', {
+    'text-color': '#7A271A',
+    'text-halo-color': '#FFFFFF',
+    'text-halo-width': 1.6,
+  }, {
+    visibility: 'none',
+    'icon-image': ['concat', 'fire-history-', ['coalesce', ['get', 'confidence'], 'low']],
+    'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.75, 15, 1],
+    'icon-allow-overlap': true,
+    'icon-ignore-placement': false,
+    'text-field': ['slice', ['coalesce', ['get', 'date'], ''], 0, 4],
+    'text-font': ['Noto Sans Regular'],
+    'text-size': 10,
+    'text-offset': [0, 1.45],
+    'text-anchor': 'top',
+    'text-optional': true,
+  });
   addSourceAndLayer(map, 'historical-spread', 'fill', {
     'fill-color': ['coalesce', ['get', 'color'], '#173564'],
     'fill-opacity': 0.22,
@@ -176,13 +309,20 @@ function installOperationalLayers(map) {
   addSourceAndLayer(map, 'historical-direction', 'line', {
     'line-color': '#173564', 'line-width': 2, 'line-dasharray': [2, 2],
   });
+  // Below the style's water layer, so fire spread stops at the shoreline.
+  const belowWater = map.getLayer('water') ? 'water' : undefined;
   addSourceAndLayer(map, 'spread-ghosts', 'line', {
     'line-color': ['get', 'color'], 'line-opacity': 0.38, 'line-width': 1, 'line-dasharray': [1, 2],
-  });
+  }, {}, belowWater);
   addSourceAndLayer(map, 'spread-live', 'fill', {
-    'fill-color': ['get', 'color'], 'fill-opacity': 0.2,
+    'fill-color': ['get', 'color'], 'fill-opacity': 0.24,
     'fill-outline-color': ['get', 'color'],
-  });
+  }, {}, belowWater);
+  // Behind the fire it still creeps, slowly, so this half stays visible in a
+  // calmer colour instead of the alarm red.
+  addSourceAndLayer(map, 'spread-rear', 'fill', {
+    'fill-color': '#E8B04A', 'fill-opacity': 0.14, 'fill-outline-color': '#C98A1E',
+  }, {}, belowWater);
   addSourceAndLayer(map, 'wind-direction', 'line', {
     'line-color': ['get', 'color'], 'line-width': 2, 'line-dasharray': [2, 3],
   });
@@ -382,15 +522,33 @@ function markerElement(className, title) {
   return element;
 }
 
+// Incidents whose marker already played its pop-in, so rebuilding the
+// markers (selecting, scrubbing the timeline) doesn't replay it.
+const poppedFireIds = new Set();
+
 function fireMarker(incident, selected, status) {
   const held = incident.alarm.level === 0;
   const underControl = status === 'under_control';
   const alarmColor = underControl ? '#2F6CFF' : incident.alarm.color;
   const element = markerElement('map-fire-marker', `${incident.alarm.label}: ${incident.barangayName}`);
   const pin = document.createElement('span');
-  pin.className = `fire-pin ${held && !underControl ? 'is-light' : ''} ${underControl ? 'is-under-control' : ''} ${selected ? 'is-selected' : ''}`;
+  const lvl = held || underControl ? 0 : Math.min(5, Math.max(1, incident.alarm.level));
+  const rings = lvl ? 1 + Math.ceil(lvl / 2) : 2;
+  const popped = poppedFireIds.has(incident.id);
+  poppedFireIds.add(incident.id);
+  pin.className = `fire-pin is-lvl-${lvl} ${popped ? 'no-pop' : ''} ${held && !underControl ? 'is-light' : ''} ${underControl ? 'is-under-control' : ''} ${selected ? 'is-selected' : ''}`;
   pin.style.setProperty('--alarm', alarmColor);
-  pin.innerHTML = `<span class="fire-ring"></span><span class="fire-ring delay"></span><span class="fire-glow"></span>${!held && !underControl ? fireSmokeMarkup : ''}<span class="fire-flame">${!held && !underControl ? flameSvg : ''}</span>${held && !underControl ? '<span class="fire-smoke-dot"></span>' : ''}<span class="fire-code">${underControl ? 'UC' : incident.alarm.code}</span>`;
+  pin.style.setProperty('--rings', rings);
+  if (lvl) ensureFireDefs();
+  pin.innerHTML = `${lvl ? '<span class="fire-heat"></span>' : ''}`
+    + Array.from({ length: rings }, (_, r) => `<span class="fire-ring" style="--r:${r}"></span>`).join('')
+    + '<span class="fire-glow"></span>'
+    + (lvl ? '<span class="fire-base"></span>' : '')
+    + (lvl ? fireSmokeMarkup(lvl) : '')
+    + `<span class="fire-flame">${lvl ? fireFlameMarkup(lvl) : ''}</span>`
+    + (lvl ? fireEmberMarkup(lvl) : '')
+    + (held && !underControl ? '<span class="fire-smoke-dot"></span>' : '')
+    + `<span class="fire-code">${underControl ? 'UC' : incident.alarm.code}</span>`;
   element.appendChild(pin);
   return element;
 }
@@ -668,6 +826,11 @@ function MapLibreView({
     () => active ? projectSpread({ ...selected.spreadParams, minutes: horizonMinutes }) : null,
     [active, selected, horizonMinutes]
   );
+  // The plume marker only needs the heading, which doesn't change with the
+  // timeline — keep `live` out of the marker effect so scrubbing doesn't
+  // tear down and rebuild every fire marker.
+  // In calm air smoke rises straight up, which is north on the plume's dial.
+  const plumeBearing = live ? (live.calm ? 0 : live.headBearing) : null;
   const smokeUrls = useMemo(
     () => haze?.frames ? renderSmokeFrames(haze.frames) : null,
     [haze]
@@ -829,10 +992,6 @@ function MapLibreView({
       const properties = event.features?.[0]?.properties;
       if (properties) popupText(map, event.lngLat, `${properties.name}: ${properties.label}`);
     };
-    const reportClick = (event) => {
-      const note = event.features?.[0]?.properties?.note;
-      if (note) popupText(map, event.lngLat, note);
-    };
     const historicalHotspotClick = (event) => {
       const label = event.features?.[0]?.properties?.label;
       if (label) popupText(map, event.lngLat, label);
@@ -862,7 +1021,6 @@ function MapLibreView({
     map.on('mouseleave', 'temperatures', temperatureLeave);
     map.on('click', 'haze-sources', sourceClick);
     map.on('click', 'haze-regions', regionClick);
-    map.on('click', 'report-points', reportClick);
     map.on('click', 'historical-hotspots', historicalHotspotClick);
     for (const layerId of ['arcgis-polygons', 'arcgis-lines', 'arcgis-points']) {
       map.on('click', layerId, arcgisFeatureClick);
@@ -878,7 +1036,6 @@ function MapLibreView({
       temperaturePopup.remove();
       map.off('click', 'haze-sources', sourceClick);
       map.off('click', 'haze-regions', regionClick);
-      map.off('click', 'report-points', reportClick);
       map.off('click', 'historical-hotspots', historicalHotspotClick);
       for (const layerId of ['arcgis-polygons', 'arcgis-lines', 'arcgis-points']) {
         map.off('click', layerId, arcgisFeatureClick);
@@ -894,7 +1051,10 @@ function MapLibreView({
       const currentStatus = incidentStateMap[incident.id] ?? 'active';
       if (currentStatus === 'fire_out') continue;
       for (const projection of incident.projections ?? []) {
-        features.push(polygonFeature(projection.polygon, { color: incident.alarm.color }));
+        features.push(feature({
+          type: 'LineString',
+          coordinates: lineCoordinates(projection.frontArc),
+        }, { color: incident.alarm.color }));
       }
     }
     setData(map, 'spread-ghosts', collection(features));
@@ -904,10 +1064,13 @@ function MapLibreView({
     if (!map || !loaded) return;
     const features = [];
     if (active && live && selected) {
-      features.push(polygonFeature(live.polygon, { color: selected.alarm.color }));
+      features.push(polygonFeature(live.frontPolygon, { color: selected.alarm.color }));
     }
     setData(map, 'spread-live', collection(features));
-    setData(map, 'wind-direction', collection(active && live && selected ? [
+    setData(map, 'spread-rear', collection(active && live && selected && !live.calm
+      ? [polygonFeature(live.rearPolygon, {})]
+      : []));
+    setData(map, 'wind-direction', collection(active && live && selected && !live.calm ? [
       feature({
         type: 'LineString',
         coordinates: lineCoordinates([
@@ -919,7 +1082,7 @@ function MapLibreView({
     setData(map, 'report-points', collection(selected
       ? (selected.reports ?? []).map((report) => feature({
         type: 'Point', coordinates: asLngLat(report.location),
-      }, { note: report.note ?? '' }))
+      }))
       : []));
     setData(map, 'historical-spread', collection(historicalOverlay ? [
       polygonFeature(historicalOverlay.spread.polygon, { color: '#173564' }),
@@ -1171,9 +1334,9 @@ function MapLibreView({
       element.addEventListener('click', () => onSelect(incident.id));
       markers.push(marker);
     }
-    if (active && selected && live) {
-      const plume = markerElement('plume-wrap', `Wind direction ${live.headBearing}°`);
-      plume.innerHTML = `<span class="plume" style="--head:${live.headBearing}deg; --intensity:${Math.min(selected.alarm.level / 5, 1)}">${Array.from({ length: 4 }, (_, i) => `<span class="smoke" style="--i:${i}"></span>`).join('')}${Array.from({ length: 7 }, (_, i) => `<span class="ember" style="--i:${i}"></span>`).join('')}</span>`;
+    if (active && selected && plumeBearing != null) {
+      const plume = markerElement('plume-wrap', `Wind direction ${plumeBearing}°`);
+      plume.innerHTML = `<span class="plume" style="--head:${plumeBearing}deg; --intensity:${Math.min(selected.alarm.level / 5, 1)}">${Array.from({ length: 3 + selected.alarm.level }, (_, i) => `<span class="smoke" style="--i:${i}"></span>`).join('')}${Array.from({ length: 5 + selected.alarm.level * 2 }, (_, i) => `<span class="ember" style="--i:${i}"></span>`).join('')}</span>`;
       markers.push(iconMarker(map, plume, selected.location));
     }
     if (userLocation) {
@@ -1184,7 +1347,7 @@ function MapLibreView({
       markers.forEach((marker) => marker.remove());
       stationPopups.forEach((popup) => popup.remove());
     };
-  }, [map, loaded, incidents, incidentStateMap, selectedId, onSelect, showStations, cityTemps, active, selected, live, userLocation, earthquakeMode, ensoMode]);
+  }, [map, loaded, incidents, incidentStateMap, selectedId, onSelect, showStations, cityTemps, active, selected, plumeBearing, userLocation, earthquakeMode, ensoMode]);
 
   useEffect(() => {
     if (!map || !loaded) return;

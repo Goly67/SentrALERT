@@ -67,9 +67,11 @@ export function composePost(incident, alarm) {
   const evidence = incident.reports.find((r) => r.driveUrl)?.driveUrl;
 
   return [
-    `${incident.triage.postPrefix} — ${incident.barangayName}, Surigao City`,
+    `${incident.triage.postPrefix} — ${incident.barangayName}${incident.outsideCity ? '' : ', Surigao City'}`,
     `${alarm.label} · reported ${time}`,
-    `Wind is pushing the fire ${incident.headDirection}. Households in that direction should move now, not wait.`,
+    incident.directionless
+      ? 'There is no steady wind, so the fire could spread in any direction. Nearby households should be ready to move now, not wait.'
+      : `Wind is pushing the fire ${incident.headDirection}. Households in that direction should move now, not wait.`,
     `Location: ${maps}`,
     evidence ? `Photo/video from a reporter: ${evidence}` : null,
     `Reported through SentraLERT. Call the Bureau of Fire Protection for response.`,

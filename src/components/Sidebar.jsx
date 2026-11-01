@@ -101,7 +101,7 @@ export default function Sidebar({
             </p>
             <p className="muted small">
               {wind.source === 'open-meteo'
-                ? 'Live observation'
+                ? 'Surigao City · live forecast model'
                 : 'Fallback reading — weather service unreachable'}
             </p>
           </div>

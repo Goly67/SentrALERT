@@ -13,6 +13,11 @@ export default defineConfig({
       ignored: ['**/alarmsounds/**'],
     },
     proxy: {
+      '/api/enso-index': {
+        target: 'https://www.cpc.ncep.noaa.gov',
+        changeOrigin: true,
+        rewrite: () => '/data/indices/oni.ascii.txt',
+      },
       '/api/pagasa-weather': {
         target: 'https://pagasa.dost.gov.ph',
         changeOrigin: true,

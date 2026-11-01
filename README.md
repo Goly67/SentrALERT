@@ -172,14 +172,15 @@ nearby report when it falls within 2 km, alongside the independent-report
 logic. VIIRS detects thermal activity, not individual houses, so it never
 creates a report or map pin by itself.
 
-The Philippines fire map merges the ArcGIS VIIRS feed with NASA FIRMS when a
-FIRMS map key is configured. FIRMS adds separate near-real-time feeds for
-Suomi NPP VIIRS, NOAA-20 VIIRS, NOAA-21 VIIRS, and MODIS. Create a free key at
-<https://firms.modaps.eosdis.nasa.gov/api/map_key/> and add it to `.env.local`:
-
-```bash
-VITE_FIRMS_MAP_KEY=your_firms_map_key
-```
+The **Fire Risk Predictor** control on the normal Surigao map combines
+documented historical fire locations, Firebase reports, current local wind,
+humidity, and NOAA's Oceanic Niño Index (ENSO). Wind direction shifts the
+historical risk signal downwind. Fire locations remain marked, with evidence
+confidence shown separately from the risk index. This is an experimental
+screening index, not a calibrated probability or trained forecast. The
+available verified incident history is too small, and the repo has no building
+registry, hydrant, land-use, or inspection data to validate a machine-learning
+model. Do not use it as an official warning or as a sole basis for dispatch.
 
 
 ## Evidence: Google Drive links, not uploads
