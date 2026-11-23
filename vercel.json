@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/cdrrmo", "destination": "/cdrrmo.html" },
+    { "source": "/cdrrmo/", "destination": "/cdrrmo.html" },
+    { "source": "/cdrrmo.html/", "destination": "/cdrrmo.html" },
+    { "source": "/bfp", "destination": "/bfp.html" },
+    { "source": "/bfp/", "destination": "/bfp.html" },
+    { "source": "/bfp.html/", "destination": "/bfp.html" }
+  ]
+}

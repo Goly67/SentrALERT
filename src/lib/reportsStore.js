@@ -1,4 +1,4 @@
-import { ref, onValue, set, remove, get } from 'firebase/database';
+import { ref, onValue, set, remove, get, update } from 'firebase/database';
 import { db, firebaseEnabled } from './firebase.js';
 import { seedReports } from '../data/surigao.js';
 import { canAcceptReport, getReportSpamMessage } from './reportGuard.js';
@@ -116,10 +116,10 @@ export async function updateReport(reportId, updates) {
   const nextReport = { ...base, ...updates };
 
   if (firebaseEnabled) {
-    await set(ref(db, `reports/${reportId}`), {
-      ...nextReport,
-      status: updates.status ?? nextReport.status ?? 'approved',
-    });
+    // Only the changed fields: `base` comes from the in-memory sample list,
+    // not the live report, so writing it whole would erase the report's
+    // location (and the database rules now reject that).
+    await update(ref(db, `reports/${reportId}`), updates);
     return;
   }
 

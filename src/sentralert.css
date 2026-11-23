@@ -228,7 +228,7 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
 .earthquake-report-save:disabled { cursor: wait; opacity: 0.62; }
 .earthquake-report-back span { font-size: 1rem; line-height: 1; }
 .earthquake-info-heading { display: grid; gap: 6px; }
-.earthquake-info-heading h2 { margin: 0; color: var(--navy); font-size: 1.28rem; }
+.earthquake-info-heading h2 { margin: 0; color: var(--navy); font-size: 1.28rem; line-height: 1.25; }
 .earthquake-info-heading > p:last-child { margin: 0; color: var(--ink-soft); font-size: 0.8rem; line-height: 1.5; }
 .earthquake-info-kicker { margin: 0; color: #B42318; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .earthquake-info-error {
@@ -337,10 +337,11 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
 .sidebar-tools-menu[open] > summary { border-bottom: 1px solid var(--line); }
 .sidebar-tools-menu > summary:focus-visible { outline: 3px solid rgba(23, 53, 100, 0.35); outline-offset: 2px; }
 .sidebar-tools-chevron {
-  width: 7px; height: 7px; margin-left: auto; border-top: 1.5px solid currentColor;
-  border-right: 1.5px solid currentColor; transform: rotate(135deg); transition: transform 160ms ease;
+  flex: none; width: 8px; height: 8px; margin: 0 4px 3px auto; border: 0;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(45deg); transition: transform 160ms ease;
 }
-.sidebar-tools-menu[open] .sidebar-tools-chevron { transform: rotate(315deg); }
+.sidebar-tools-menu[open] .sidebar-tools-chevron { margin-bottom: 0; margin-top: 3px; transform: rotate(-135deg); }
 .sidebar-tools-content { display: grid; gap: 9px; padding: 10px; }
 .earthquake-mode-toggle { justify-content: flex-start; min-height: 42px; padding: 0 11px; }
 .earthquake-mode-toggle .earthquake-mode-state {
@@ -557,6 +558,10 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
 .analytics-hour i { display: block; width: 100%; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #4F84C4, var(--navy)); }
 .analytics-empty, .analytics-footnote { margin: 0; }
 .analytics-footnote { text-align: center; font-size: 0.7rem; }
+.analytics-causes h3 + p { margin: 3px 0 0; }
+.analytics-card.analytics-causes .sa-bar { grid-template-columns: minmax(120px, 190px) 1fr 24px; }
+.analytics-causes-lead { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; border-radius: 10px; background: #FEF3F2; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.35; }
+.analytics-causes-lead b { flex: none; color: #B42318; font-size: 1.45rem; line-height: 1; }
 
 /* Existing components, refreshed */
 .incident-row { border-radius: 16px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); transition: transform 160ms, box-shadow 160ms; }
@@ -656,6 +661,7 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
   .sa-kpis div { padding: 10px; }
   .sa-kpis b { font-size: 1.45rem; }
   .analytics-card .sa-bar { grid-template-columns: minmax(58px, 86px) minmax(0, 1fr) 18px; gap: 6px; }
+  .analytics-card.analytics-causes .sa-bar { grid-template-columns: minmax(96px, 130px) minmax(0, 1fr) 20px; }
   .sa-contacts li { gap: 8px; }
 }
 
@@ -674,6 +680,10 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
   .earthquake-info-panel.is-fullscreen .earthquake-info-value { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* While the image is made, really remove what the image leaves out: the
+   heading is a grid, and the export keeps its row sizes, so a row for the
+   (left-out) buttons would push the title into the subtitle. */
+.earthquake-info-panel.is-exporting-landscape [data-export-exclude="true"] { display: none !important; }
 .earthquake-info-panel.is-fullscreen.is-exporting-landscape {
   box-sizing: border-box; width: 1200px !important; max-width: none !important; padding: 24px; gap: 14px;
 }
@@ -683,6 +693,7 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
 }
 .earthquake-info-panel.is-fullscreen.is-exporting-landscape .sa-logo-frame {
   flex: 0 0 320px; width: 320px; height: 76px; max-height: 76px;
+  margin: 0; /* phone styles centre the logo with auto margins */
   animation: none;
 }
 .earthquake-info-panel.is-fullscreen.is-exporting-landscape .sa-logo-frame::after { content: none; }
@@ -1110,3 +1121,40 @@ button:focus-visible, summary:focus-visible, .sa-input:focus-visible { outline: 
 .maplibre-map .fire-risk-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: #FFFFFF; }
 @keyframes fire-risk-popup-enter { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .fire-risk-popup-card { animation: none; } }
+
+/* Reported intensities, organized (EarthquakeInfo.jsx IntensityReport). */
+.earthquake-info-value.is-wide { grid-column: 1 / -1; }
+.earthquake-info-rich { min-width: 0; }
+.eq-intensity { display: grid; gap: 10px; }
+.eq-intensity-section { display: grid; gap: 8px; }
+.eq-intensity-type {
+  margin: 0; color: var(--ink-soft); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.eq-intensity-levels, .eq-intensity-provinces { margin: 0; padding: 0; list-style: none; }
+.eq-intensity-levels { display: grid; gap: 8px; }
+.eq-intensity-level {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px;
+  padding: 8px 10px 8px 8px; border: 1px solid #E9EFF6; border-radius: 12px; background: #FAFCFE;
+}
+.eq-intensity-badge {
+  display: grid; place-items: center; align-content: center; min-width: 42px; height: 42px; padding: 0 6px;
+  border-radius: 10px; background: var(--peis); color: #0E2240;
+  font-size: 0.95rem; font-weight: 800; line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(14, 34, 64, 0.08);
+}
+.eq-intensity-badge small { margin-bottom: 2px; font-size: 0.5rem; letter-spacing: 0.08em; opacity: 0.75; }
+.eq-intensity-badge.is-dark { color: #fff; }
+.eq-intensity-provinces { display: grid; gap: 5px; align-self: center; }
+.eq-intensity-provinces li { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
+.eq-intensity-provinces strong { color: var(--ink); font-size: 0.74rem; font-weight: 750; }
+.eq-intensity-provinces span { color: var(--ink-soft); font-size: 0.66rem; font-weight: 600; }
+.eq-intensity-note { margin: 0; color: var(--ink-soft); font-size: 0.66rem; font-style: italic; }
+
+/* Earthquake report: the map starts at the top and grows to fill the whole
+   height of the details column beside it (instead of floating in the middle). */
+.earthquake-info-panel.is-fullscreen .earthquake-report { align-items: stretch; }
+.earthquake-info-panel.is-fullscreen .earthquake-map-section {
+  grid-template-rows: auto minmax(0, 1fr) auto; align-content: stretch; align-self: stretch;
+}
+.earthquake-info-panel.is-fullscreen .earthquake-map-frame { height: auto; min-height: 260px; }
+.earthquake-info-panel.is-fullscreen.is-exporting-landscape .earthquake-map-frame { height: auto; min-height: 300px; }

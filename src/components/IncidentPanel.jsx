@@ -86,6 +86,10 @@ export default function IncidentPanel({
   const structures = mappedBuildings === null
     ? scrubbed.estimatedStructures
     : burningFromMapped(mappedBuildings, incident.fuel);
+  const density = incident.density;
+  const densityNote = density
+    ? `Building density: ~${Math.round(density.homesPerHa)} homes per built-up hectare in ${density.name} (${density.censusYear} census grown to the ${density.year} projection, ${density.source}).`
+    : 'Building density assumed for this kind of area.';
   const held = incident.alarm.level === 0;
   const underControl = incidentState === 'under_control';
   const post = incident.triage.autoPost ? composePost(incident, incident.alarm) : null;
@@ -204,8 +208,9 @@ export default function IncidentPanel({
           </dl>
 
           <p className="muted small">
-            {incident.fuelLabel}. {mappedBuildings === null
-              ? 'Structures estimated from typical building density.'
+            {incident.fuelLabel}. {densityNote}{' '}
+            {mappedBuildings === null
+              ? 'Structures estimated from that density.'
               : `${mappedBuildings} buildings mapped in this zone (OpenStreetMap).`}{' '}
             Worst-case estimate with no firefighting: real fires can differ. {windNote}{' '}
             Drag the timeline under the map to walk the front forward. {incident.reports.length} independent report

@@ -9,7 +9,9 @@ import { destination } from './geo.js';
  * fireResistantRatio  share of buildings that resist fire (concrete, block)
  * involvementRate     share of buildings inside the footprint that actually burn
  *
- * ASSUMED, not surveyed: replace with BFP / barangay figures when available.
+ * The other figures are ASSUMED, not surveyed. For Surigao City barangays,
+ * structuresPerHa is replaced by homes per built-up hectare from the LDRRMP
+ * (see buildingStock in incidents.js); these values are the fallback.
  */
 export const FUEL_PROFILES = {
   dense_residential: {
@@ -42,7 +44,11 @@ export const FUEL_PROFILES = {
   },
 };
 
-const profileFor = (fuel) => FUEL_PROFILES[fuel] ?? FUEL_PROFILES.mixed_residential;
+// A building count per hectare measured for the area replaces the class's own.
+const profileFor = (fuel, structuresPerHa) => {
+  const profile = FUEL_PROFILES[fuel] ?? FUEL_PROFILES.mixed_residential;
+  return structuresPerHa > 0 ? { ...profile, structuresPerHa } : profile;
+};
 
 // The formula assumes fire always crosses to the next building. That holds in
 // close-built towns but not across open lots, where it would run faster than
@@ -64,8 +70,8 @@ const STEADY_WIND_KMH = 10;
  * Journal 43(7), 2008). Fitted to Japanese towns, not checked against
  * Philippine fires, and it assumes nobody is fighting the fire.
  */
-export function spreadRates({ fuel, windKmh }) {
-  const profile = profileFor(fuel);
+export function spreadRates({ fuel, windKmh, structuresPerHa }) {
+  const profile = profileFor(fuel, structuresPerHa);
   const wind = Math.max(windKmh, 0) / 3.6;
   const side = profile.sideM;
   const spacing = Math.sqrt(10000 / profile.structuresPerHa);
@@ -134,13 +140,14 @@ export function projectSpread({
   windFromDeg,
   windKmh,
   fuel,
+  structuresPerHa,
   minutes,
   points = 72,
   existingStructures = 0,
 }) {
-  const profile = profileFor(fuel);
+  const profile = profileFor(fuel, structuresPerHa);
   // Spread speed is physics (buildings, wind), not the alarm level.
-  const rates = spreadRates({ fuel, windKmh });
+  const rates = spreadRates({ fuel, windKmh, structuresPerHa });
   const headBearing = (windFromDeg + 180) % 360;
 
   // Distance covered per minute in each direction, walking round from the

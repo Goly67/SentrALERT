@@ -1,4 +1,7 @@
 import { barangays } from '../data/surigao.js';
+import {
+  builtUpDensity, LDRRMP_SOURCE, LDRRMP_CENSUS_YEAR, LDRRMP_PROJECTION_YEAR,
+} from '../data/ldrrmp.js';
 import surigaoBarangayBoundaries from '../data/surigaoBarangays.json' with { type: 'json' };
 import { bfpStations } from '../data/bfpStations.js';
 import { distanceMeters, compassLabel } from './geo.js';
@@ -88,6 +91,28 @@ export function resolveBarangay(location) {
     : best;
 }
 
+/**
+ * Buildings around a fire: the barangay's homes per built-up hectare from the
+ * LDRRMP, and a building class that fits that density (a barangay marked
+ * commercial keeps that class: shops are not counted as homes). Barangays the
+ * LDRRMP does not list keep the assumed class and its typical density.
+ */
+export function buildingStock(barangay) {
+  const density = barangay.outsideList ? null : builtUpDensity(barangay.name);
+  if (!density) return { fuel: barangay.fuel, density: null };
+  const fuel = barangay.fuel === 'commercial'
+    ? 'commercial'
+    : density.homesPerHa >= 45 ? 'dense_residential'
+      : density.homesPerHa >= 20 ? 'mixed_residential'
+        : 'sparse';
+  return {
+    fuel,
+    density: {
+      ...density, censusYear: LDRRMP_CENSUS_YEAR, year: LDRRMP_PROJECTION_YEAR, source: LDRRMP_SOURCE,
+    },
+  };
+}
+
 /** Group reports that describe the same fire. */
 function clusterReports(reports) {
   const sorted = [...reports].sort(
@@ -143,7 +168,7 @@ export function buildIncidents(reports, wind, airQualitySignals = [], thermalHot
       const primary = cluster[0];
       const location = centroid(cluster.map((r) => r.location));
       const barangay = resolveBarangay(location);
-      const fuel = barangay.fuel;
+      const { fuel, density } = buildingStock(barangay);
 
       const thermalActive = thermalHotspots.some((hotspot) =>
         distanceMeters(location, [hotspot.lat, hotspot.lon]) <= 2000
@@ -156,6 +181,7 @@ export function buildIncidents(reports, wind, airQualitySignals = [], thermalHot
         windKmh: fireWind.speedKmh,
         humidity: fireWind.humidity,
         fuel,
+        ...(density ? { structuresPerHa: density.homesPerHa } : {}),
       };
       const projections = projectHorizons(spreadParams);
 
@@ -187,6 +213,7 @@ export function buildIncidents(reports, wind, airQualitySignals = [], thermalHot
         outsideCity: Boolean(barangay.outsideList),
         fuel,
         fuelLabel: FUEL_PROFILES[fuel].label,
+        density,
         triage: result,
         spreadParams,
         projections,

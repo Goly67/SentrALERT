@@ -416,7 +416,6 @@ export default function App() {
     setHazeOn(on);
     if (on) {
       setEnsoMode(false);
-      setFireRiskMode(false);
       setShowStations(false);
     } else {
       setShowStations(true);
@@ -434,7 +433,6 @@ export default function App() {
     if (on) {
       stationsBeforeEnsoRef.current = showStations;
       setHazeOn(false);
-      setFireRiskMode(false);
       setShowStations(false);
       setView('list');
       setSelectedId(null);
@@ -477,10 +475,9 @@ export default function App() {
   const reporting = !hazeOn && view === 'report';
   const normalMap = !hazeOn && !earthquakeMode && !ensoMode && !reporting
     && !['safety', 'analytics', 'about', 'team', 'arcgis', 'levels', 'historical'].includes(view);
+  // The layer is remembered: it only hides while a page, haze, earthquakes or
+  // the ENSO map is open, and returns afterwards.
   const showFireRisk = fireRiskMode && normalMap;
-  useEffect(() => {
-    if (!normalMap && fireRiskMode) setFireRiskMode(false);
-  }, [normalMap, fireRiskMode]);
   const showHazeTimeline = hazeOn && Boolean(haze.data?.frames);
   const selectedIsActive = selected
     && (incidentStatusMap[selected.id] ?? 'active') === 'active';
@@ -611,7 +608,6 @@ export default function App() {
           const nextEnabled = !earthquakeMode;
           if (nextEnabled) {
             setHazeOn(false);
-            setFireRiskMode(false);
             setSelectedId(null);
             setPendingLocation(null);
           }
@@ -649,7 +645,7 @@ export default function App() {
             ensoOn={ensoMode}
             onEnsoChange={toggleEnsoMode}
             fireRiskAvailable={normalMap || ensoMode}
-            fireRiskOn={showFireRisk}
+            fireRiskOn={fireRiskMode}
             onFireRiskChange={toggleFireRiskLayer}
             is3d={mapIs3d}
             onToggle3d={() => setMapIs3d((value) => !value)}
@@ -820,9 +816,20 @@ export default function App() {
 
       {!ensoMode && (
         <RailNav
+          alertCount={activeIncidents.length}
           active={railOpen
-            ? (['safety', 'analytics', 'arcgis', 'about', 'team'].includes(view) && !hazeOn ? view : 'alerts')
+            ? (view === 'report' && !hazeOn ? 'report'
+              : ['safety', 'analytics', 'arcgis', 'about', 'team'].includes(view) && !hazeOn ? view : 'alerts')
             : null}
+          onReport={() => {
+            setHazeOn(false);
+            setEnsoMode(false);
+            setEarthquakeMode(false);
+            setSelectedId(null);
+            setPendingLocation(null);
+            setView('report');
+            setRailOpen(true);
+          }}
           onChange={(tab) => {
             setHazeOn(false);
             setEnsoMode(false);

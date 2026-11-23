@@ -847,6 +847,8 @@ function MapLibreView({
       bearing: -12,
       maxPitch: 75,
       attributionControl: {
+        // Collapsed to an (i) button; the full credits open on tap.
+        compact: true,
         customAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · <a href="https://openfreemap.org">OpenFreeMap</a>',
       },
       cooperativeGestures: false,
@@ -855,6 +857,29 @@ function MapLibreView({
     setMap(instance);
     onMapReady?.(instance);
     instance.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    // MapLibre opens the compact map credits on start (and again once the map
+    // data arrives on phones). Keep them folded to the (i) button on every
+    // load until the person taps it themselves.
+    let creditsTapped = false;
+    const creditsEl = () => containerRef.current?.querySelector('.maplibregl-ctrl-attrib');
+    const foldCredits = () => {
+      const credits = creditsEl();
+      if (!credits || creditsTapped) return;
+      if (credits.hasAttribute('open')) credits.removeAttribute('open');
+      if (credits.classList.contains('maplibregl-compact-show')) credits.classList.remove('maplibregl-compact-show');
+    };
+    const creditsObserver = new MutationObserver(foldCredits);
+    // The credits control exists as soon as the map is created; watch it from
+    // here rather than waiting for 'load', which can take a while on phones.
+    const credits = creditsEl();
+    if (credits) {
+      credits.addEventListener('click', () => {
+        creditsTapped = true;
+        creditsObserver.disconnect();
+      }, { capture: true, once: true });
+      creditsObserver.observe(credits, { attributes: true, attributeFilter: ['open', 'class'] });
+      foldCredits();
+    }
     let styleReady = false;
     instance.on('load', () => {
       styleReady = true;
@@ -879,6 +904,7 @@ function MapLibreView({
       }
     });
     return () => {
+      creditsObserver.disconnect();
       instance.remove();
       mapRef.current = null;
       onMapReady?.(null);

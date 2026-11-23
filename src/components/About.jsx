@@ -1,3 +1,4 @@
+import Contact from './Contact.jsx';
 const FEATURES = [
   {
     icon: '🔥',
@@ -123,6 +124,7 @@ export default function About() {
           <p>SentraLERT does not replace official alerts or emergency instructions.</p>
         </div>
       </section>
+      <Contact embedded />
     </div>
   );
 }

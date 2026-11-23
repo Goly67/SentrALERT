@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { CircleMarker, MapContainer, TileLayer } from 'react-leaflet';
+import { CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet';
 import { toBlob } from 'html-to-image';
 import { BrandHeader } from './Brand.jsx';
-import { fetchEarthquakeBulletin } from '../lib/earthquakes.js';
+import { fetchEarthquakeBulletin, parseIntensityReport } from '../lib/earthquakes.js';
 import 'leaflet/dist/leaflet.css';
 
 const EVENTS_PER_PAGE = 20;
@@ -30,13 +30,92 @@ function magnitudeColorClass(magnitude) {
   return 'is-magnitude-low';
 }
 
-function EventValue({ label, children }) {
+function EventValue({ label, children, wide = false }) {
   return (
-    <div className="earthquake-info-value">
+    <div className={`earthquake-info-value ${wide ? 'is-wide' : ''}`}>
       <span>{label}</span>
-      <strong>{children}</strong>
+      {wide ? <div className="earthquake-info-rich">{children}</div> : <strong>{children}</strong>}
     </div>
   );
+}
+
+// PHIVOLCS Earthquake Intensity Scale colours, light to severe.
+const INTENSITY_COLORS = {
+  I: '#E4E7EC', II: '#C7DDF7', III: '#9CC6F0', IV: '#9BE3B3', V: '#F8E58A', VI: '#F9C27A',
+  VII: '#F58A4C', VIII: '#E5483B', IX: '#B42318', X: '#7A1F17',
+};
+const DARK_INTENSITY = new Set(['VII', 'VIII', 'IX', 'X', 'XI', 'XII']);
+
+/** Reported intensities as a tidy list: level badge, then towns by province. */
+function IntensityReport({ text }) {
+  const report = parseIntensityReport(text);
+  // Small quakes sometimes carry a stray value here (e.g. "11.20a") and no
+  // intensities at all; say so plainly instead of printing it.
+  if (!report) return <strong>{/intensit/i.test(text) ? text : 'None reported'}</strong>;
+  return (
+    <div className="eq-intensity">
+      {report.sections.map((section, sectionIndex) => (
+        <div className="eq-intensity-section" key={`${section.type ?? 'all'}-${sectionIndex}`}>
+          {section.type && <p className="eq-intensity-type">{section.type} intensities</p>}
+          <ul className="eq-intensity-levels">
+            {section.levels.map((level) => (
+              <li key={level.level} className="eq-intensity-level">
+                <span
+                  className={`eq-intensity-badge ${DARK_INTENSITY.has(level.level) ? 'is-dark' : ''}`}
+                  style={{ '--peis': INTENSITY_COLORS[level.level] ?? '#E4E7EC' }}
+                  title={`Intensity ${level.level}`}
+                >
+                  <small>INT</small>{level.level}
+                </span>
+                <ul className="eq-intensity-provinces">
+                  {level.provinces.map((group) => (
+                    <li key={group.province || group.places.join()}>
+                      <strong>{group.places.join(', ')}</strong>
+                      {group.province && <span>{group.province}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {report.notes.map((note) => <p key={note} className="eq-intensity-note">{note}</p>)}
+    </div>
+  );
+}
+
+/**
+ * Leaflet measures its box once. The map frame stretches to the height of the
+ * details beside it (and changes size while the image is saved), so re-measure
+ * whenever the frame resizes, or a grey strip is left where the map should be.
+ */
+function KeepMapSized() {
+  const map = useMap();
+  useEffect(() => {
+    const frame = map.getContainer().parentElement;
+    if (!frame || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(frame);
+    map.invalidateSize();
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
+
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
+/** Waits (up to ~4 s) for the epicenter map to resize and finish loading tiles. */
+async function settleMap(panel) {
+  await nextFrame();
+  await nextFrame();
+  const deadline = Date.now() + 4000;
+  while (Date.now() < deadline) {
+    const tiles = [...panel.querySelectorAll('.earthquake-map-frame .leaflet-tile')];
+    if (tiles.length && tiles.every((tile) => tile.complete && tile.classList.contains('leaflet-tile-loaded'))) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 150));
 }
 
 function EpicenterMap({ event }) {
@@ -66,6 +145,7 @@ function EpicenterMap({ event }) {
             attribution="&copy; OpenStreetMap contributors"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <KeepMapSized />
           <CircleMarker
             center={[event.latitude, event.longitude]}
             radius={10}
@@ -152,6 +232,10 @@ export default function EarthquakeInfo({
     setImageSaveStatus('');
     const panel = panelRef.current;
     panel.classList.add('is-exporting-landscape');
+    // The image uses a wider layout than the screen (much wider on a phone):
+    // let the map resize and load its new tiles before taking the picture,
+    // or a grey strip is left where they were missing.
+    await settleMap(panel);
 
     try {
       const imageBlob = await toBlob(panel, {
@@ -272,7 +356,9 @@ export default function EarthquakeInfo({
                 {selectedEvent.depthKm == null ? 'Not reported' : `${selectedEvent.depthKm.toFixed(1)} km`}
               </EventValue>
               <EventValue label="Origin">{bulletinLoading ? 'Loading…' : bulletin?.origin || 'Not listed'}</EventValue>
-              <EventValue label="Reported intensities">{bulletinLoading ? 'Loading…' : bulletin?.intensities || 'Not listed'}</EventValue>
+              <EventValue label="Reported intensities" wide={!bulletinLoading && Boolean(bulletin?.intensities)}>
+                {bulletinLoading ? 'Loading…' : bulletin?.intensities ? <IntensityReport text={bulletin.intensities} /> : 'Not listed'}
+              </EventValue>
               <EventValue label="Expecting damage">{bulletinLoading ? 'Loading…' : bulletin?.expectedDamage || 'Not reported'}</EventValue>
               <EventValue label="Expecting aftershocks">{bulletinLoading ? 'Loading…' : bulletin?.expectedAftershocks || 'Not reported'}</EventValue>
               <EventValue label="Issued on">{bulletinLoading ? 'Loading…' : bulletin?.issuedOn || 'Not reported'}</EventValue>

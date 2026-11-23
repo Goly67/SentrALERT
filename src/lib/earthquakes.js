@@ -248,3 +248,78 @@ export function waveCircleFeature(latitude, longitude, radiusKm, opacity, steps 
     geometry: { type: 'Polygon', coordinates: [ring] },
   };
 }
+
+// ---- Reported intensities, organized ------------------------------------
+//
+// PHIVOLCS writes intensities as one run-on sentence, e.g.
+//   "Instrumental Intensities: Intensity III - Abuyog and Hilongos, LEYTE;
+//    Sogod, SOUTHERN LEYTE Intensity II - ... This is an automatic solution"
+// parseIntensityReport() turns that into sections (Reported / Instrumental),
+// each with intensity levels, each with places grouped by province.
+
+const INTENSITY_ROMAN = 'XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I';
+const SMALL_WORDS = new Set(['of', 'del', 'de', 'and', 'the', 'la', 'las', 'los']);
+
+function provinceName(raw) {
+  const words = raw.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return words
+    .map((word, index) => (index > 0 && SMALL_WORDS.has(word) ? word : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(' ');
+}
+
+function parseLevelPlaces(body) {
+  const provinces = [];
+  for (const entry of body.split(';')) {
+    const cleaned = entry.replace(/\s+/g, ' ').trim().replace(/[.,]$/, '');
+    if (!cleaned) continue;
+    const lastComma = cleaned.lastIndexOf(',');
+    const placePart = lastComma >= 0 ? cleaned.slice(0, lastComma) : cleaned;
+    const province = lastComma >= 0 ? provinceName(cleaned.slice(lastComma + 1)) : '';
+    const places = placePart.split(/\s*,\s*|\s+and\s+/i).map((place) => place.trim()).filter(Boolean);
+    if (!places.length) continue;
+    const existing = provinces.find((item) => item.province === province);
+    if (existing) existing.places.push(...places);
+    else provinces.push({ province, places });
+  }
+  return provinces;
+}
+
+/**
+ * @returns {{ sections: { type: string|null, levels: { level: string, provinces: { province: string, places: string[] }[] }[] }[], notes: string[] } | null}
+ *   null when the text does not follow the usual "Intensity <roman> - places" pattern.
+ */
+export function parseIntensityReport(text) {
+  if (typeof text !== 'string' || !text.trim()) return null;
+  const notes = [];
+  let rest = text
+    .replace(/\b20\d{2}_\d{4}_\d{4,}_B1F?\b/gi, ' ')
+    .replace(/\bThis is an? [^;]*?\b(?:solution|report)\b\.?/gi, (note) => {
+      notes.push(note.trim().replace(/\.?$/, '.'));
+      return ' ';
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Split into "Reported Intensities:" / "Instrumental Intensities:" sections.
+  const sectionPattern = /\b(Reported|Instrumental)\s+Intensities\s*:\s*/gi;
+  const marks = [...rest.matchAll(sectionPattern)];
+  const chunks = marks.length
+    ? marks.map((mark, index) => ({
+      type: mark[1].charAt(0).toUpperCase() + mark[1].slice(1).toLowerCase(),
+      body: rest.slice(mark.index + mark[0].length, marks[index + 1]?.index ?? rest.length),
+    }))
+    : [{ type: null, body: rest }];
+
+  const levelPattern = new RegExp(`\\bIntensity\\s+(${INTENSITY_ROMAN})\\b\\s*[-–—:]?\\s*`, 'gi');
+  const sections = [];
+  for (const chunk of chunks) {
+    const parts = chunk.body.split(levelPattern);
+    const levels = [];
+    for (let i = 1; i < parts.length; i += 2) {
+      const provinces = parseLevelPlaces(parts[i + 1] ?? '');
+      if (provinces.length) levels.push({ level: parts[i].toUpperCase(), provinces });
+    }
+    if (levels.length) sections.push({ type: chunk.type, levels });
+  }
+  return sections.length ? { sections, notes } : null;
+}

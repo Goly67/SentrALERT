@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { ALARM_LEVELS } from '../lib/alarmLevels.js';
+import { FIRE_CAUSES, FIRE_CAUSE_YEARS, LDRRMP_SOURCE } from '../data/ldrrmp.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -7,6 +8,52 @@ const HOUR_MS = 60 * 60 * 1000;
 function dateValue(value) {
   const time = new Date(value).getTime();
   return Number.isFinite(time) ? time : null;
+}
+
+// Recorded causes (LDRRMP Table 30), largest first. Fixed history, so worked out once.
+const CAUSES = [...FIRE_CAUSES].sort((a, b) => b.total - a.total);
+const MAX_CAUSE = Math.max(...CAUSES.map((row) => row.total));
+const BUILDING_FIRES = CAUSES.filter((row) => !row.grass).reduce((sum, row) => sum + row.total, 0);
+const ELECTRICAL_FIRES = CAUSES
+  .filter((row) => /electrical/i.test(row.cause))
+  .reduce((sum, row) => sum + row.total, 0);
+const GRASS = CAUSES.find((row) => row.grass);
+const CAUSE_YEARS = `${FIRE_CAUSE_YEARS[0]}–${FIRE_CAUSE_YEARS[FIRE_CAUSE_YEARS.length - 1]}`;
+
+function FireCauses() {
+  return (
+    <section className="sa-card analytics-card analytics-causes">
+      <div>
+        <h3>What starts fires here · {CAUSE_YEARS}</h3>
+        <p className="muted small">Recorded fire incidents. Source: {LDRRMP_SOURCE} (CDRRMO).</p>
+      </div>
+      <p className="analytics-causes-lead">
+        <b>{Math.round((ELECTRICAL_FIRES / BUILDING_FIRES) * 100)}%</b>
+        <span>
+          of non-grass fires were electrical: {ELECTRICAL_FIRES} of {BUILDING_FIRES}.
+          {GRASS && ` Grass fires jumped to ${GRASS.counts[GRASS.counts.length - 1]} in ${FIRE_CAUSE_YEARS[FIRE_CAUSE_YEARS.length - 1]}.`}
+        </span>
+      </p>
+      {CAUSES.map((row) => (
+        <div
+          className="sa-bar"
+          key={row.cause}
+          title={`${row.cause}: ${FIRE_CAUSE_YEARS.map((year, i) => `${year} ${row.counts[i]}`).join(', ')}`}
+        >
+          <span>{row.cause}</span>
+          <div className="analytics-bar-track">
+            <i
+              style={{
+                width: `${(row.total / MAX_CAUSE) * 100}%`,
+                '--c': /electrical/i.test(row.cause) ? '#D92D20' : row.grass ? '#B7791F' : undefined,
+              }}
+            />
+          </div>
+          <b>{row.total}</b>
+        </div>
+      ))}
+    </section>
+  );
 }
 
 function Analytics({ incidents = [], reports = [], incidentStatusMap = {} }) {
@@ -116,7 +163,8 @@ function Analytics({ incidents = [], reports = [], incidentStatusMap = {} }) {
           </div>
         )) : <p className="muted small analytics-empty">No current fire incidents to summarize.</p>}
       </section>
-      <p className="muted small analytics-footnote">Charts update as reports and incident statuses change.</p>
+      <FireCauses />
+      <p className="muted small analytics-footnote">Live charts update as reports and incident statuses change.</p>
     </div>
   );
 }

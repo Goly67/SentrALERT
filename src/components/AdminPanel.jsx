@@ -105,6 +105,17 @@ export default function AdminPanel({
   onClose,
 }) {
   const [loginError, setLoginError] = useState('');
+  const [actionError, setActionError] = useState('');
+  // Approve / reject / delete / edits are refused by the database rules when
+  // this account is not in staffRoles as CDRRMO: say so instead of failing silently.
+  const save = (promise) => {
+    setActionError('');
+    promise.catch((error) => setActionError(
+      /permission/i.test(`${error?.code} ${error?.message}`)
+        ? 'Not saved: the database refused it. Make sure the latest database.rules.json (SentrALERT - ESP32 folder) is published in the Firebase console. Other admins also need a staffRoles entry of "cdrrmo".'
+        : 'Not saved. Check the connection and try again.'
+    ));
+  };
   const [user, setUser] = useState(null);
   const [panelState, setPanelState] = useState(readStoredPanelState);
 
@@ -287,6 +298,13 @@ export default function AdminPanel({
                 </button>
               </div>
 
+              {actionError && (
+                <p className="admin-error" role="alert">
+                  <AlertGlyph />
+                  <span>{actionError}</span>
+                </p>
+              )}
+
               {incidentStatusError && (
                 <p className="admin-error" role="alert">
                   <AlertGlyph />
@@ -325,7 +343,7 @@ export default function AdminPanel({
                           <textarea
                             value={report.note ?? ''}
                             placeholder="Add a note about this report…"
-                            onChange={(event) => updateReport(report.id, { note: event.target.value })}
+                            onChange={(event) => save(updateReport(report.id, { note: event.target.value }))}
                           />
                         </label>
 
@@ -335,7 +353,7 @@ export default function AdminPanel({
                             type="url"
                             value={report.driveUrl ?? ''}
                             placeholder="https://drive.google.com/…"
-                            onChange={(event) => updateReport(report.id, { driveUrl: event.target.value || null })}
+                            onChange={(event) => save(updateReport(report.id, { driveUrl: event.target.value || null }))}
                           />
                         </label>
 
@@ -355,21 +373,21 @@ export default function AdminPanel({
                           <button
                             className="admin-action admin-action--approve"
                             type="button"
-                            onClick={() => setReportStatus(report.id, 'approved', user.email)}
+                            onClick={() => save(setReportStatus(report.id, 'approved', user.email))}
                           >
                             <CheckGlyph /> Approve
                           </button>
                           <button
                             className="admin-action admin-action--reject"
                             type="button"
-                            onClick={() => setReportStatus(report.id, 'rejected', user.email)}
+                            onClick={() => save(setReportStatus(report.id, 'rejected', user.email))}
                           >
                             <CrossGlyph /> Reject
                           </button>
                           <button
                             className="admin-action admin-action--delete"
                             type="button"
-                            onClick={() => deleteReport(report.id)}
+                            onClick={() => save(deleteReport(report.id))}
                             aria-label="Delete report"
                             title="Delete report"
                           >

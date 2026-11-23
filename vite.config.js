@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { phivolcsAgent } from './server/phivolcs-ca.js';
 
 export default defineConfig({
   plugins: [react()],
@@ -39,6 +40,9 @@ export default defineConfig({
       '/api/earthquake-bulletin': {
         target: 'https://earthquake.phivolcs.dost.gov.ph',
         changeOrigin: true,
+        // Trust PHIVOLCS's intermediate certificate even when its server
+        // leaves it out (see server/phivolcs-ca.js).
+        agent: phivolcsAgent,
         rewrite: (requestPath) => {
           const bulletinPath = new URL(requestPath, 'http://localhost').searchParams.get('path');
           if (!bulletinPath || !/^\/\d{4}_Earthquake_Information\/[A-Za-z]+\/\d{4}(?:_\d{4})?_\d{4,}_B1F?\.html$/.test(bulletinPath)) {
