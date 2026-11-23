@@ -7,7 +7,8 @@ import {
   signInWithPopup,
   signOut,
 } from 'firebase/auth';
-import { auth } from '../lib/firebase.js';
+import { ref, get } from 'firebase/database';
+import { auth, db } from '../lib/firebase.js';
 import { enableAlarmSounds } from '../lib/alarmAudio.js';
 import { deleteReport, setReportStatus, updateReport } from '../lib/reportsStore.js';
 import { resolveBarangay } from '../lib/incidents.js';
@@ -25,6 +26,29 @@ const statusOf = (report) => report.status ?? 'approved';
 
 function isAuthorizedAdmin(user) {
   return !!user && typeof user.email === 'string' && ADMIN_EMAILS.includes(user.email.toLowerCase());
+}
+
+// The CDRRMO and BFP dashboards on this website (see vercel.json).
+const DASHBOARDS = {
+  cdrrmo: { name: 'CDRRMO', href: '/cdrrmo.html' },
+  bfp: { name: 'BFP', href: '/bfp.html' },
+};
+
+/**
+ * 'cdrrmo', 'bfp' or null: the office in this account's staffRoles entry
+ * (managed in the Firebase console; same node the database rules read).
+ * Staff stay signed in here so their office's dashboard lets them in.
+ */
+async function staffOffice(user) {
+  if (!db || !user?.email || !user.emailVerified) return null;
+  try {
+    const key = user.email.toLowerCase().replaceAll('.', ',');
+    const value = (await get(ref(db, `staffRoles/${key}`))).val();
+    // 'cdrmo' is the older spelling of the CDRRMO role; still accepted.
+    return value === 'cdrrmo' || value === 'cdrmo' ? 'cdrrmo' : value === 'bfp' ? 'bfp' : null;
+  } catch {
+    return null;
+  }
 }
 
 function readStoredPanelState() {
@@ -105,6 +129,8 @@ export default function AdminPanel({
   onClose,
 }) {
   const [loginError, setLoginError] = useState('');
+  // CDRRMO / BFP staff signed in here: no admin panel, a link to their dashboard.
+  const [staff, setStaff] = useState(null);
   const [actionError, setActionError] = useState('');
   // Approve / reject / delete / edits are refused by the database rules when
   // this account is not in staffRoles as CDRRMO: say so instead of failing silently.
@@ -137,6 +163,7 @@ export default function AdminPanel({
     if (!auth) return undefined;
 
     return onAuthStateChanged(auth, async (nextUser) => {
+      setStaff(null);
       if (!nextUser) {
         setUser(null);
         onAdminAuthorizationChange?.(false);
@@ -145,6 +172,13 @@ export default function AdminPanel({
 
       if (!isAuthorizedAdmin(nextUser)) {
         onAdminAuthorizationChange?.(false);
+        const office = await staffOffice(nextUser);
+        if (office) {
+          setLoginError('');
+          setUser(null);
+          setStaff({ email: nextUser.email, office });
+          return;
+        }
         setLoginError('This Google account is not authorized for admin access.');
         await signOut(auth);
         setUser(null);
@@ -237,7 +271,17 @@ export default function AdminPanel({
         </header>
 
         <div className="admin-body">
-          {!user ? (
+          {!user && staff ? (
+            <div className="admin-login">
+              <span className="admin-login-icon" aria-hidden="true"><ShieldGlyph /></span>
+              <h3>{DASHBOARDS[staff.office].name} staff</h3>
+              <p className="muted">Signed in as {staff.email}. Your work is on the {DASHBOARDS[staff.office].name} dashboard.</p>
+              <a className="admin-google" href={DASHBOARDS[staff.office].href}>
+                Open the {DASHBOARDS[staff.office].name} dashboard
+              </a>
+              <button className="admin-signout" type="button" onClick={handleSignOut}>Sign out</button>
+            </div>
+          ) : !user ? (
             <div className="admin-login">
               <span className="admin-login-icon" aria-hidden="true"><ShieldGlyph /></span>
               <h3>Sign in to continue</h3>
@@ -268,6 +312,13 @@ export default function AdminPanel({
                 </div>
                 <button className="admin-signout" type="button" onClick={handleSignOut}>Sign out</button>
               </div>
+
+              <p className="admin-dashboards">
+                Dashboards:{' '}
+                <a href={DASHBOARDS.cdrrmo.href}>{DASHBOARDS.cdrrmo.name}</a>
+                {' · '}
+                <a href={DASHBOARDS.bfp.href}>{DASHBOARDS.bfp.name}</a>
+              </p>
 
               <div className="admin-stats">
                 <div className="admin-stat admin-stat--pending"><b>{counts.pending}</b><span>Pending</span></div>

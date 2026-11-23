@@ -1503,6 +1503,10 @@ input[type='range'] { accent-color: var(--orange); }
 .admin-google:hover { border-color: var(--orange); background: var(--orange-wash); }
 .admin-google svg { width: 20px; height: 20px; }
 .admin-login .admin-footnote { margin-top: 2px; color: var(--ink-soft); font-size: 0.75rem; }
+a.admin-google { text-decoration: none; }
+.admin-login .admin-signout { margin-top: 4px; }
+.admin-dashboards { margin: 0; color: var(--ink-soft); font-size: 0.8rem; }
+.admin-dashboards a { color: var(--navy, #173564); font-weight: 700; }
 
 /* signed-in bar + stats */
 .admin-user-bar {
