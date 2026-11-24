@@ -3,7 +3,10 @@ import { createPortal } from 'react-dom';
 import * as maplibregl from 'maplibre-gl';
 import mapLibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { SURIGAO_CENTER } from '../data/surigao.js';
-import { globeBlocked, watchMapDrawing } from '../lib/mapHealth.js';
+import {
+  globeBlocked, lightMap, lowerMapLevel, mapLevel, reloadForLevel, watchMapDrawing,
+  MAX_MAP_LEVEL, STARTUP_CRASH_MS,
+} from '../lib/mapHealth.js';
 import {
   BFP_CARAGA_FALLBACK_CONTACT,
   bfpStations,
@@ -841,14 +844,18 @@ function MapLibreView({
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
+    // Devices that crashed the full map get a lighter one (mapHealth.js).
+    const light = lightMap();
     const instance = new maplibregl.Map({
       container: containerRef.current,
       style: STYLE_URL,
       center: [SURIGAO_CENTER[1], SURIGAO_CENTER[0]],
       zoom: 14,
-      pitch: 52,
+      pitch: light ? 0 : 52,
       bearing: -12,
-      maxPitch: 75,
+      maxPitch: light ? 0 : 75,
+      // Fewer pixels to draw: about a quarter of the graphics memory on a tablet.
+      ...(light ? { pixelRatio: Math.min(window.devicePixelRatio || 1, 1) } : {}),
       attributionControl: {
         // Collapsed to an (i) button; the full credits open on tap.
         compact: true,
@@ -898,6 +905,11 @@ function MapLibreView({
           });
         }
         installOperationalLayers(instance);
+        if (light) {
+          for (const layer of instance.getStyle().layers) {
+            if (layer.type === 'fill-extrusion') instance.setLayoutProperty(layer.id, 'visibility', 'none');
+          }
+        }
         setLoaded(true);
         setMapError('');
         stopDrawWatch = watchMapDrawing(instance, {
@@ -913,7 +925,17 @@ function MapLibreView({
         setMapError(event.error?.message || 'The free map style could not be loaded. Check your connection.');
       }
     });
+    // A crash right after start means this device cannot handle the map at
+    // its current level: step down and reload once (see mapHealth.js).
+    const startedAt = Date.now();
     instance.on('webglcontextlost', () => {
+      if (Date.now() - startedAt < STARTUP_CRASH_MS && mapLevel() < MAX_MAP_LEVEL) {
+        lowerMapLevel();
+        if (reloadForLevel()) {
+          setMapError('switching to a lighter map for this device…');
+          return;
+        }
+      }
       setMapError('the device paused the map graphics. Reload the page to bring the map back.');
     });
     instance.on('webglcontextrestored', () => setMapError(''));

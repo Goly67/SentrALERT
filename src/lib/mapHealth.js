@@ -1,29 +1,79 @@
 /**
- * Some phone and tablet graphics chips (seen on iPads) draw nothing at all
- * with the 3D globe view: the map stays see-through and only the page
- * background shows. These helpers notice that and fall back to the flat map,
- * which every device can draw, and remember it for this device.
+ * Some phone and tablet graphics chips (seen on iPads) cannot draw the full
+ * map: the 3D globe view comes out see-through, or the chip crashes and the
+ * browser shuts the map's graphics off ("context lost"). These helpers step
+ * such a device down to a lighter map and remember it on that device:
+ *
+ *   level 0  full map: 3D globe, sky, tilt and 3D buildings
+ *   level 1  flat map (no globe, no sky)
+ *   level 2  flat map, no tilt or 3D buildings, drawn at lower sharpness
  */
 
-const FLAT_KEY = 'sentralert-map-flat-v1';
+const LEVEL_KEY = 'sentralert-map-level-v1';
+// Written by the first version of this check (flat map only).
+const OLD_FLAT_KEY = 'sentralert-map-flat-v1';
+// Reload at most once per level in a visit, so a device can never loop.
+const RELOADED_KEY = 'sentralert-map-reloaded-level';
+export const MAX_MAP_LEVEL = 2;
 // Long enough for a slow phone to draw its first frames after 'load'.
 const CHECK_AFTER_MS = 4000;
+// A crash this soon after the map starts is the device, not a passing glitch.
+export const STARTUP_CRASH_MS = 30000;
 
-/** True once this device has shown it cannot draw the globe. */
-export function globeBlocked() {
+function read(storage, key) {
   try {
-    return window.localStorage.getItem(FLAT_KEY) === '1';
+    return window[storage].getItem(key);
   } catch {
-    return false;
+    return null;
   }
 }
 
-function blockGlobe() {
+function write(storage, key, value) {
   try {
-    window.localStorage.setItem(FLAT_KEY, '1');
+    window[storage].setItem(key, value);
   } catch {
-    // Storage off (private mode): the fallback still applies to this visit.
+    // Storage off (private mode): the step-down still applies to this visit.
   }
+}
+
+let sessionLevel = null;
+
+/** How far this device has been stepped down (0 = full map). */
+export function mapLevel() {
+  if (sessionLevel !== null) return sessionLevel;
+  const stored = Number(read('localStorage', LEVEL_KEY));
+  const level = Number.isInteger(stored) && stored > 0 ? stored : 0;
+  sessionLevel = Math.min(Math.max(level, read('localStorage', OLD_FLAT_KEY) === '1' ? 1 : 0), MAX_MAP_LEVEL);
+  return sessionLevel;
+}
+
+/** Steps this device down one level (up to MAX_MAP_LEVEL); returns the new level. */
+export function lowerMapLevel(to = mapLevel() + 1) {
+  sessionLevel = Math.min(Math.max(to, mapLevel()), MAX_MAP_LEVEL);
+  write('localStorage', LEVEL_KEY, String(sessionLevel));
+  return sessionLevel;
+}
+
+/** True once this device has shown it cannot draw the globe. */
+export function globeBlocked() {
+  return mapLevel() >= 1;
+}
+
+/** True when the map should skip tilt and 3D buildings and draw at lower sharpness. */
+export function lightMap() {
+  return mapLevel() >= 2;
+}
+
+/**
+ * Reloads the page once for the current level. Returns false when this visit
+ * already reloaded for it (then the caller shows a message instead).
+ */
+export function reloadForLevel() {
+  const level = String(mapLevel());
+  if (read('sessionStorage', RELOADED_KEY) === level) return false;
+  write('sessionStorage', RELOADED_KEY, level);
+  window.setTimeout(() => window.location.reload(), 1200);
+  return true;
 }
 
 // Spots across the map. A working map paints every one of them: its land and
@@ -50,9 +100,9 @@ function frameHasPixels(gl) {
 }
 
 /**
- * Watches a freshly loaded map. If nothing is drawn, switches to the flat map
- * (onFlat), and if even that draws nothing, reports it (onFail). Returns a
- * function that stops watching.
+ * Watches a freshly loaded map. If nothing is drawn with the globe, switches
+ * to the flat map (onFlat); if even that draws nothing, reports it (onFail).
+ * Returns a function that stops watching.
  */
 export function watchMapDrawing(map, { onFlat, onFail }) {
   const gl = map.getCanvas().getContext('webgl2');
@@ -82,7 +132,7 @@ export function watchMapDrawing(map, { onFlat, onFail }) {
       }
       if (stage === 'globe') {
         stage = 'flat';
-        blockGlobe();
+        lowerMapLevel(1);
         map.setProjection({ type: 'mercator' });
         map.setSky(undefined);
         onFlat?.();
