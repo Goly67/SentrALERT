@@ -19,7 +19,7 @@ const STATUS_LABEL = {
   rejected: 'Rejected',
 };
 
-const ADMIN_EMAILS = ['forestparty223@gmail.com'];
+const ADMIN_EMAILS = ['forestparty223@gmail.com', 'sentralert@gmail.com'];
 const ADMIN_STORAGE_KEY = 'sfw-admin-panel-state-v1';
 
 const statusOf = (report) => report.status ?? 'approved';
