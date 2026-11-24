@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import * as maplibregl from 'maplibre-gl';
 import mapLibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { SURIGAO_CENTER } from '../data/surigao.js';
+import { globeBlocked, watchMapDrawing } from '../lib/mapHealth.js';
 import {
   BFP_CARAGA_FALLBACK_CONTACT,
   bfpStations,
@@ -813,6 +814,8 @@ function MapLibreView({
   onMapReady,
 }) {
   const containerRef = useRef(null);
+  // Flat map only, on devices that showed they cannot draw the globe (mapHealth.js).
+  const flatOnlyRef = useRef(globeBlocked());
   const mapRef = useRef(null);
   const wasEnsoModeRef = useRef(false);
   const [map, setMap] = useState(null);
@@ -881,19 +884,26 @@ function MapLibreView({
       foldCredits();
     }
     let styleReady = false;
+    let stopDrawWatch = () => {};
     instance.on('load', () => {
       styleReady = true;
       try {
-        instance.setProjection({ type: 'globe' });
-        instance.setSky({
-          'sky-color': '#122B49',
-          'horizon-color': '#A9C9E1',
-          'sky-horizon-blend': 0.16,
-          'atmosphere-blend': 0.88,
-        });
+        if (!flatOnlyRef.current) {
+          instance.setProjection({ type: 'globe' });
+          instance.setSky({
+            'sky-color': '#122B49',
+            'horizon-color': '#A9C9E1',
+            'sky-horizon-blend': 0.16,
+            'atmosphere-blend': 0.88,
+          });
+        }
         installOperationalLayers(instance);
         setLoaded(true);
         setMapError('');
+        stopDrawWatch = watchMapDrawing(instance, {
+          onFlat: () => { flatOnlyRef.current = true; },
+          onFail: () => setMapError('this device could not draw the map. Reload the page, or update the browser.'),
+        });
       } catch (error) {
         setMapError(error instanceof Error ? error.message : 'The map style could not be prepared.');
       }
@@ -903,7 +913,12 @@ function MapLibreView({
         setMapError(event.error?.message || 'The free map style could not be loaded. Check your connection.');
       }
     });
+    instance.on('webglcontextlost', () => {
+      setMapError('the device paused the map graphics. Reload the page to bring the map back.');
+    });
+    instance.on('webglcontextrestored', () => setMapError(''));
     return () => {
+      stopDrawWatch();
       creditsObserver.disconnect();
       instance.remove();
       mapRef.current = null;
@@ -946,7 +961,7 @@ function MapLibreView({
     map.setRenderWorldCopies(true);
     map.dragRotate.enable();
     map.touchZoomRotate.enableRotation();
-    map.setProjection({ type: 'globe' });
+    map.setProjection({ type: flatOnlyRef.current ? 'mercator' : 'globe' });
   }, [map, loaded, ensoMode]);
 
   useEffect(() => {

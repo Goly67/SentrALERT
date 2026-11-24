@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapView from './components/MapLibreView.jsx';
+import { globeBlocked } from './lib/mapHealth.js';
 import Sidebar from './components/Sidebar.jsx';
 import ReportForm from './components/ReportForm.jsx';
 import IncidentPanel from './components/IncidentPanel.jsx';
@@ -448,7 +449,7 @@ export default function App() {
       map.stop();
       map.setMinZoom(0);
       map.setMaxZoom(24);
-      map.setProjection({ type: 'globe' });
+      map.setProjection({ type: globeBlocked() ? 'mercator' : 'globe' });
       map.jumpTo({
         center: [SURIGAO_CENTER[1], SURIGAO_CENTER[0]],
         zoom: isMobile ? 13 : 14,
