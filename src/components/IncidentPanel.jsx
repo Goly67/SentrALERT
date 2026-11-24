@@ -67,6 +67,8 @@ const relative = (minutes) => {
 export default function IncidentPanel({
   incident, horizonMinutes, onBack, onOpenLevels,
   incidentState = 'active', postApproval, onApprovePost, onRevokePost, onReportFire, mapRef,
+  // Admins (later: paying members) can move the spread forward in time.
+  canScrub = false,
 }) {
   const [showAllEvidence, setShowAllEvidence] = useState(false);
   const thirty = incident.projections.find((p) => p.minutes === 30);
@@ -157,13 +159,19 @@ export default function IncidentPanel({
         <p className="muted small">Under control. The active fire alarm and spread projection are paused.</p>
       ) : held ? (
         <p className="muted small">
-          Not dispatched. {reportsNeeded} more report{reportsNeeded === 1 ? '' : 's'} within
-          200 m in the next ten minutes promote{reportsNeeded === 1 ? 's' : ''} this to a
-          1st Alarm on its own.
+          {incident.alarm.manual ? 'Light Warning set by the CDRRMO. Not dispatched.' : (
+            <>
+              Not dispatched. {reportsNeeded} more report{reportsNeeded === 1 ? '' : 's'} within
+              200 m in the next ten minutes promote{reportsNeeded === 1 ? 's' : ''} this to a
+              1st Alarm on its own.
+            </>
+          )}
         </p>
       ) : (
         <>
-          {nextReportAlarm ? (
+          {incident.alarm.manual ? (
+            <p className="report-progress">{incident.alarm.label} set by the CDRRMO · {incident.alarm.respondingUnits} responding.</p>
+          ) : nextReportAlarm ? (
             <p className="report-progress">
               {nextReportsNeeded} more report{nextReportsNeeded === 1 ? '' : 's'} within 200 m
               to reach {nextReportAlarm.label}.
@@ -213,7 +221,7 @@ export default function IncidentPanel({
               ? 'Structures estimated from that density.'
               : `${mappedBuildings} buildings mapped in this zone (OpenStreetMap).`}{' '}
             Worst-case estimate with no firefighting: real fires can differ. {windNote}{' '}
-            Drag the timeline under the map to walk the front forward. {incident.reports.length} independent report
+            {canScrub ? 'Drag the timeline under the map to walk the front forward. ' : ''}{incident.reports.length} independent report
             {incident.reports.length > 1 ? 's' : ''} so far.
           </p>
 

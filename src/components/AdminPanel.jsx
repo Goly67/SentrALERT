@@ -12,6 +12,7 @@ import { auth, db } from '../lib/firebase.js';
 import { enableAlarmSounds } from '../lib/alarmAudio.js';
 import { deleteReport, setReportStatus, updateReport } from '../lib/reportsStore.js';
 import { resolveBarangay } from '../lib/incidents.js';
+import { isAuthorizedAdmin } from '../lib/admin.js';
 
 const STATUS_LABEL = {
   pending: 'Pending',
@@ -19,14 +20,9 @@ const STATUS_LABEL = {
   rejected: 'Rejected',
 };
 
-const ADMIN_EMAILS = ['forestparty223@gmail.com', 'sentralert@gmail.com'];
 const ADMIN_STORAGE_KEY = 'sfw-admin-panel-state-v1';
 
 const statusOf = (report) => report.status ?? 'approved';
-
-function isAuthorizedAdmin(user) {
-  return !!user && typeof user.email === 'string' && ADMIN_EMAILS.includes(user.email.toLowerCase());
-}
 
 // The CDRRMO and BFP dashboards on this website (see vercel.json).
 const DASHBOARDS = {

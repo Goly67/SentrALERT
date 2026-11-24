@@ -812,6 +812,8 @@ function MapLibreView({
   earthquakeError = '',
   earthquakeMode = false,
   ensoMode = false,
+  // Day (YYYY-MM-DD) whose sea-temperature map to show; null = the latest.
+  ensoDate = null,
   onSelectEarthquake,
   is3d = true,
   onMapReady,
@@ -1241,6 +1243,14 @@ function MapLibreView({
       map.setLayoutProperty('enso-sst-anomaly', 'visibility', ensoMode ? 'visible' : 'none');
     }
   }, [map, loaded, earthquakeMode, hazeMode, fireRiskMode, ensoMode]);
+
+  // El Niño timeline: NASA's sea-temperature map for a past day, or the latest.
+  useEffect(() => {
+    if (!map || !loaded) return;
+    map.getSource('enso-sst-anomaly')?.setTiles?.([
+      ensoDate ? ENSO_SST_TILE_URL.replace('/default/', `/default/${ensoDate}/`) : ENSO_SST_TILE_URL,
+    ]);
+  }, [map, loaded, ensoDate]);
 
   useEffect(() => {
     if (!map || !loaded) return;

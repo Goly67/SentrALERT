@@ -7,7 +7,7 @@ import { bfpStations } from '../data/bfpStations.js';
 import { distanceMeters, compassLabel } from './geo.js';
 import { projectHorizons, FUEL_PROFILES } from './fireSpread.js';
 import { windForFire } from './wind.js';
-import { classifyAlarm } from './alarmLevels.js';
+import { classifyAlarm, LIGHT_WARNING, ALARM_LEVELS } from './alarmLevels.js';
 import { triage, CLUSTER_RADIUS_M, CLUSTER_WINDOW_MIN } from './verification.js';
 
 const ACTIVE_FIRE_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -141,6 +141,25 @@ function centroid(points) {
   return [lat, lng];
 }
 
+const validLevel = (value) => Number.isInteger(value) && value >= 0 && value <= ALARM_LEVELS.length;
+
+/**
+ * The alarm level the CDRRMO set for this fire, or null. The CDRRMO page
+ * files it under the fire's first report, which this site may group
+ * differently (it leaves out FireSense sensor reports), so any report in the
+ * fire counts, and so does a sensor report within the same few hundred metres.
+ */
+function cdrrmoLevel(cluster, location, alarmOverrides, sensorReports) {
+  for (const report of cluster) {
+    if (validLevel(alarmOverrides[report.id])) return alarmOverrides[report.id];
+  }
+  const nearby = sensorReports
+    .filter((report) => validLevel(alarmOverrides[report.id])
+      && distanceMeters(report.location, location) <= CLUSTER_RADIUS_M)
+    .map((report) => alarmOverrides[report.id]);
+  return nearby.length ? Math.max(...nearby) : null;
+}
+
 /**
  * Turn raw reports into incidents with spread projections and an alarm level.
  * Everything is derived — no stored status, so re-running after new reports
@@ -148,7 +167,9 @@ function centroid(points) {
  * `wind` is the city's; `localWinds` holds readings for fires elsewhere, keyed
  * by windCell (see wind.js).
  */
-export function buildIncidents(reports, wind, airQualitySignals = [], thermalHotspots = [], localWinds = {}) {
+export function buildIncidents(
+  reports, wind, airQualitySignals = [], thermalHotspots = [], localWinds = {}, alarmOverrides = {}, sensorReports = []
+) {
   const now = Date.now();
   const airQualityActive = airQualitySignals.some((signal) => {
     const detectedAt = new Date(signal.detectedAt).getTime();
@@ -175,7 +196,7 @@ export function buildIncidents(reports, wind, airQualitySignals = [], thermalHot
       );
       const result = triage(primary, cluster, airQualityActive, thermalActive);
       const fireWind = windForFire(location, wind, localWinds);
-      const spreadParams = {
+      const baseParams = {
         origin: location,
         windFromDeg: fireWind.fromDeg,
         windKmh: fireWind.speedKmh,
@@ -183,16 +204,32 @@ export function buildIncidents(reports, wind, airQualitySignals = [], thermalHot
         fuel,
         ...(density ? { structuresPerHa: density.homesPerHa } : {}),
       };
-      const projections = projectHorizons(spreadParams);
-
-      const thirtyMin = projections.find((p) => p.minutes === 30) ?? projections[0];
+      const baseProjections = projectHorizons(baseParams);
+      const baseThirty = baseProjections.find((p) => p.minutes === 30) ?? baseProjections[0];
       const minutesElapsed = (now - new Date(primary.reportedAt)) / 60000;
-      const alarm = classifyAlarm({
-        estimatedStructures: thirtyMin.estimatedStructures,
-        corroboration: cluster.length,
-        minutesElapsed,
-        held: result.status === 'monitoring' && cluster.length < 5,
-      });
+
+      // The CDRRMO's decision wins over the report count.
+      const level = cdrrmoLevel(cluster, location, alarmOverrides, sensorReports);
+      const step = level === 0 ? LIGHT_WARNING : ALARM_LEVELS[level - 1];
+      const alarm = level === null
+        ? classifyAlarm({
+          estimatedStructures: baseThirty.estimatedStructures,
+          corroboration: cluster.length,
+          minutesElapsed,
+          held: result.status === 'monitoring' && cluster.length < 5,
+        })
+        : {
+          ...step,
+          baseLevel: level,
+          escalatedBy: 0,
+          manual: true,
+          respondingUnits: level === 0 ? 'No units dispatched' : `${step.units} units`,
+        };
+      // Like the CDRRMO page: a higher alarm starts from a fire that already
+      // involves that level's structures, so both sites draw the same area.
+      const spreadParams = level >= 1 ? { ...baseParams, existingStructures: step.minStructures } : baseParams;
+      const projections = level >= 1 ? projectHorizons(spreadParams) : baseProjections;
+      const thirtyMin = projections.find((p) => p.minutes === 30) ?? projections[0];
 
       const headDirection = thirtyMin.calm ? 'any direction' : compassLabel(thirtyMin.headBearing);
       const stations = [...bfpStations]

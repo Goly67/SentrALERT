@@ -19,6 +19,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: () => '/data/indices/oni.ascii.txt',
       },
+      // Weekly Niño 3.4 readings for the El Niño timeline (src/lib/ensoData.js).
+      '/api/enso-weekly': {
+        target: 'https://www.cpc.ncep.noaa.gov',
+        changeOrigin: true,
+        rewrite: () => '/data/indices/wksst9120.for',
+      },
       '/api/pagasa-weather': {
         target: 'https://pagasa.dost.gov.ph',
         changeOrigin: true,

@@ -34,7 +34,7 @@ function notifyMemoryListeners() {
  * Subscribe to the live report list. Returns an unsubscribe function.
  * Fires immediately with the current list, then again on every change.
  */
-export function subscribeToReports(callback) {
+export function subscribeToReports(callback, onSensorReports) {
   if (firebaseEnabled) {
     const reportsRef = ref(db, 'reports');
     return onValue(reportsRef, (snapshot) => {
@@ -42,6 +42,11 @@ export function subscribeToReports(callback) {
       // The database is shared with the FireSense hardware build, whose
       // reports do not belong on this crowd-report site yet.
       callback(Object.values(value).filter((report) => report?.source !== 'sensor'));
+      // Only their place and time, so a CDRRMO alarm level set on a fire that
+      // began with a sensor report still reaches the crowd reports there.
+      onSensorReports?.(Object.values(value)
+        .filter((report) => report?.source === 'sensor' && Array.isArray(report.location))
+        .map(({ id, location, reportedAt }) => ({ id, location, reportedAt })));
     });
   }
 
@@ -66,6 +71,22 @@ export function subscribeToIncidentStatuses(callback, onError) {
   incidentStatusListeners.add(callback);
   callback({ ...memoryIncidentStatuses });
   return () => incidentStatusListeners.delete(callback);
+}
+
+/**
+ * Alarm levels the CDRRMO set on its dashboard: { incidentId: 0-5 }
+ * (0 = Light Warning, 1-5 = 1st-5th Alarm). Read-only here.
+ */
+export function subscribeToIncidentAlarms(callback, onError) {
+  if (firebaseEnabled) {
+    return onValue(
+      ref(db, 'incidentAlarms'),
+      (snapshot) => callback(snapshot.val() ?? {}),
+      (error) => onError?.(error)
+    );
+  }
+  callback({});
+  return () => {};
 }
 
 /** Persist an admin's UC/FO decision for all connected clients. */

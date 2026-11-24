@@ -225,15 +225,17 @@ export default function Sidebar({
           <span className="sidebar-tools-chevron" aria-hidden="true" />
         </summary>
         <div className="sidebar-tools-content">
-          <button
-            type="button"
-            className={`secondary block levels-btn earthquake-mode-toggle ${earthquakeMode ? 'is-active' : ''}`}
-            onClick={onToggleEarthquake}
-            aria-pressed={earthquakeMode}
-          >
-            <span className="icon-warning-levels" aria-hidden="true">⌁</span>
-            <span>Earthquakes</span>
-          </button>
+          {onToggleEarthquake && (
+            <button
+              type="button"
+              className={`secondary block levels-btn earthquake-mode-toggle ${earthquakeMode ? 'is-active' : ''}`}
+              onClick={onToggleEarthquake}
+              aria-pressed={earthquakeMode}
+            >
+              <span className="icon-warning-levels" aria-hidden="true">⌁</span>
+              <span>Earthquakes</span>
+            </button>
+          )}
 
           <button className="secondary block levels-btn" onClick={onOpenLevels}>
             <span className="icon-warning-levels" aria-hidden="true">!</span>

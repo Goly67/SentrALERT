@@ -29,6 +29,8 @@ import { fetchEarthquakeEvents } from './lib/earthquakes.js';
 import { fetchThermalHotspots } from './lib/thermal.js';
 import { buildFireRiskFeatures } from './lib/fireRisk.js';
 import { fetchEnsoContext } from './lib/enso.js';
+import EnsoTimeline from './components/EnsoTimeline.jsx';
+import { useIsAdmin } from './lib/admin.js';
 import { destination, distanceMeters } from './lib/geo.js';
 import { isPointInCaraga } from './lib/haze.js';
 import { cities } from './data/bfpStations.js';
@@ -38,7 +40,7 @@ import { playAdminReportSound } from './lib/alarmAudio.js';
 import { getReportSpamMessage } from './lib/reportGuard.js';
 import { readIncidentStatusMap, writeIncidentStatusMap } from './lib/incidentStatusStore.js';
 import {
-  subscribeToReports, addReport, usingFirebase,
+  subscribeToReports, addReport, usingFirebase, subscribeToIncidentAlarms,
   subscribeToAirQualitySignals, subscribeToPostApprovals, subscribeToIncidentStatuses,
   setIncidentStatus, approveForPost, revokePostApproval,
 } from './lib/reportsStore.js';
@@ -49,6 +51,10 @@ const WEATHER_REFRESH_MS = 60 * 1000;
 
 export default function App() {
   const [reports, setReports] = useState([]);
+  // Place and time of FireSense sensor reports, only to match CDRRMO alarm levels.
+  const [sensorReports, setSensorReports] = useState([]);
+  // Alarm levels the CDRRMO set on its dashboard: { incidentId: 0-5 }.
+  const [alarmOverrides, setAlarmOverrides] = useState({});
   const [facebookLeads, setFacebookLeads] = useState([]);
   const [airQualitySignals, setAirQualitySignals] = useState([]);
   const [thermalHotspots, setThermalHotspots] = useState([]);
@@ -75,7 +81,25 @@ export default function App() {
   const [hazeFrame, setHazeFrame] = useState(0); // 0..24, 3 h apart
   const [hazeFocus, setHazeFocus] = useState(null);
   const [ensoMode, setEnsoMode] = useState(false);
+  // Past reading picked on the El Niño timeline (null = now).
+  const [ensoPoint, setEnsoPoint] = useState(null);
+  useEffect(() => {
+    if (!ensoMode) setEnsoPoint(null);
+  }, [ensoMode]);
   const [fireRiskMode, setFireRiskMode] = useState(false);
+  // Earthquakes, the fire-risk layer, spread playback and fire history are for
+  // signed-in admins for now (later a paid plan for everyone else).
+  const isAdmin = useIsAdmin();
+  const premium = isAdmin;
+  useEffect(() => {
+    if (premium) return;
+    setEarthquakeMode(false);
+    setEarthquakeReportOpen(false);
+    setFireRiskMode(false);
+    setView((current) => (current === 'historical' ? 'list' : current));
+    // No playback: the spread shows its default +30 min.
+    setHorizonMinutes(30);
+  }, [premium]);
   const [userLocation, setUserLocation] = useState(null);
   const [locationAccuracy, setLocationAccuracy] = useState(null);
   const [evacuationIncidentId, setEvacuationIncidentId] = useState(null);
@@ -126,7 +150,8 @@ export default function App() {
 
   // Firebase Realtime Database when configured, in-memory sample data
   // otherwise — reportsStore.js hides which one this is.
-  useEffect(() => subscribeToReports(setReports), []);
+  useEffect(() => subscribeToReports(setReports, setSensorReports), []);
+  useEffect(() => subscribeToIncidentAlarms(setAlarmOverrides), []);
   useEffect(() => subscribeToIncidentStatuses(
     setIncidentStatusMap,
     (error) => setIncidentStatusError(
@@ -264,8 +289,8 @@ export default function App() {
 
   const [fireWinds, setFireWinds] = useState({});
   const allIncidents = useMemo(
-    () => buildIncidents(reports, wind, airQualitySignals, thermalHotspots, fireWinds),
-    [reports, wind, airQualitySignals, thermalHotspots, fireWinds, tick]
+    () => buildIncidents(reports, wind, airQualitySignals, thermalHotspots, fireWinds, alarmOverrides, sensorReports),
+    [reports, wind, airQualitySignals, thermalHotspots, fireWinds, alarmOverrides, sensorReports, tick]
   );
   // Each fire needs the wind where it is burning, not at the city centre.
   const fireCells = [...new Set(allIncidents.map((incident) => windCell(incident.location)))].sort().join('|');
@@ -478,11 +503,11 @@ export default function App() {
     && !['safety', 'analytics', 'about', 'team', 'arcgis', 'levels', 'historical'].includes(view);
   // The layer is remembered: it only hides while a page, haze, earthquakes or
   // the ENSO map is open, and returns afterwards.
-  const showFireRisk = fireRiskMode && normalMap;
+  const showFireRisk = premium && fireRiskMode && normalMap;
   const showHazeTimeline = hazeOn && Boolean(haze.data?.frames);
   const selectedIsActive = selected
     && (incidentStatusMap[selected.id] ?? 'active') === 'active';
-  const showSpreadTimeline = !hazeOn && Boolean(selectedIsActive) && selected.alarm.level > 0 && !reporting;
+  const showSpreadTimeline = premium && !hazeOn && Boolean(selectedIsActive) && selected.alarm.level > 0 && !reporting;
   const timelineVisible = showHazeTimeline || showSpreadTimeline;
   const userInCaraga = userLocation ? isPointInCaraga(userLocation) : false;
 
@@ -582,6 +607,7 @@ export default function App() {
         onApprovePost={() => approveForPost(selected.id)}
         onRevokePost={() => revokePostApproval(selected.id)}
         onReportFire={reportExistingFire}
+        canScrub={premium}
       />
     );
   } else {
@@ -603,9 +629,9 @@ export default function App() {
           setSelectedId(null);
         }}
         onOpenLevels={() => setView('levels')}
-        onOpenHistory={() => setView('historical')}
+        onOpenHistory={premium ? () => setView('historical') : undefined}
         earthquakeMode={earthquakeMode}
-        onToggleEarthquake={() => {
+        onToggleEarthquake={premium ? () => {
           const nextEnabled = !earthquakeMode;
           if (nextEnabled) {
             setHazeOn(false);
@@ -614,7 +640,7 @@ export default function App() {
           }
           setEarthquakeMode(nextEnabled);
           setEnsoMode(false);
-        }}
+        } : undefined}
       />
     );
   }
@@ -645,7 +671,7 @@ export default function App() {
             onHazeChange={toggleHaze}
             ensoOn={ensoMode}
             onEnsoChange={toggleEnsoMode}
-            fireRiskAvailable={normalMap || ensoMode}
+            fireRiskAvailable={premium && (normalMap || ensoMode)}
             fireRiskOn={fireRiskMode}
             onFireRiskChange={toggleFireRiskLayer}
             is3d={mapIs3d}
@@ -756,6 +782,7 @@ export default function App() {
           fireRiskLabels={fireRiskData.labels}
           fireRiskHistory={fireRiskData.history}
           ensoMode={ensoMode}
+          ensoDate={ensoMode ? ensoPoint?.mapDate ?? null : null}
           arcgisLayer={arcgisLayer}
           earthquake={latestEarthquake}
           selectedEarthquake={selectedEarthquake}
@@ -844,6 +871,9 @@ export default function App() {
 
       {earthquakeMode && <EarthquakeExitChip onExit={exitEarthquakeMode} />}
 
+      {ensoMode && (
+        <EnsoTimeline context={ensoContext} selectedId={ensoPoint?.id ?? null} onSelect={setEnsoPoint} />
+      )}
       {nearbyIncident && evacuationIncidentId && createPortal(
         <div className="evacuation-backdrop" role="presentation">
           <section className="evacuation-modal" role="alertdialog" aria-modal="true" aria-labelledby="evacuation-title">
